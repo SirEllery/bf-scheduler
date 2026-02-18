@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bath Foundry — Project Timeline</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-left"></div>
+      <div class="logo"><span class="logo-brand">Bath Foundry</span> <span class="logo-sub">Schedule</span></div>
+      <div class="header-right">
+        <button class="view-toggle" id="btnTasks" onclick="app.showTasks()">Tasks</button>
+        <button class="view-toggle active" id="btnProjects" onclick="app.showProjects()">Projects</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-bar" id="statsBar"></div>
+
+    <!-- Main content area -->
+    <div id="mainArea" style="display:flex;flex:1;overflow:hidden;">
+      <div class="timeline-container" id="timelineContainer">
+        <div class="timeline" id="timeline"></div>
+      </div>
+      <div class="detail-panel" id="detailPanel">
+        <button class="detail-close" onclick="app.closeDetail()">×</button>
+        <div id="detailContent"></div>
+      </div>
+    </div>
+
+    <!-- Bottom bar (materials + notes + photos, only visible at task level) -->
+    <div class="bottom-bar" id="bottomBar" style="display:none;">
+      <div class="bottom-panel materials-section" id="materialsSection">
+        <div class="bottom-panel-header"><h3>Materials</h3></div>
+        <div class="materials-list" id="materialsList"></div>
+        <div class="materials-add">
+          <input type="text" id="newMaterialInput" class="material-input" placeholder="Add material..." />
+          <button id="addMaterialBtn" class="material-add-btn">+ Add</button>
+        </div>
+      </div>
+      <div class="bottom-panel notes-section" id="notesSection">
+        <div class="bottom-panel-header"><h3>Notes</h3></div>
+        <div class="notes-list" id="notesList"></div>
+        <div class="notes-add">
+          <textarea id="newNoteInput" class="note-input" placeholder="Add a note..." rows="2"></textarea>
+          <button id="addNoteBtn" class="note-add-btn">+ Add</button>
+        </div>
+      </div>
+      <div class="bottom-panel photos-section" id="photosSection">
+        <div class="bottom-panel-header"><h3>Photos</h3></div>
+        <div class="photos-grid" id="photosGrid"></div>
+        <label class="photo-upload-btn" id="photoUploadLabel">
+          <input type="file" id="photoUploadInput" accept="image/*" multiple style="display:none;" />
+          + Add Photos
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tooltip -->
+  <div class="tooltip" id="tooltip"></div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
