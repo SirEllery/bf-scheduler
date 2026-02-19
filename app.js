@@ -1,4 +1,4 @@
-// app.js — Bath Foundry Project Timeline
+// app.js — Bath Foundry Schedule
 // Pure vanilla JS, no dependencies
 
 (function() {
@@ -6,7 +6,7 @@
 
   // ── State ──
   let jobs = JSON.parse(JSON.stringify(SAMPLE_JOBS)); // deep clone
-  let currentLevel = 1;  // 1=portfolio, 2=project, 3=task
+  let currentLevel = 1;  // 1=timeline, 2=project, 3=task
   let currentJobId = null;
   let currentTaskIndex = null;
 
@@ -73,8 +73,8 @@
   // ── DOM refs ──
   const $timeline = document.getElementById('timeline');
   const $statsBar = document.getElementById('statsBar');
+  const $btnTimeline = document.getElementById('btnTimeline');
   const $btnProjects = document.getElementById('btnProjects');
-  const $btnTasks = document.getElementById('btnTasks');
   const $tooltip = document.getElementById('tooltip');
   const $detailPanel = document.getElementById('detailPanel');
   const $detailContent = document.getElementById('detailContent');
@@ -238,7 +238,7 @@
     return Math.round((done / job.tasks.length) * 100);
   }
 
-  // ── Render Level 1: Portfolio ──
+  // ── Render Level 1: Timeline ──
   function renderPortfolio() {
     currentLevel = 1;
     currentJobId = null;
@@ -359,7 +359,7 @@
     scrollToToday(range, dayWidth, SIDEBAR_W);
   }
 
-  // ── Render Level 2: Project ──
+  // ── Render Level 2: Project (shows tasks) ──
   function renderProject(jobId) {
     currentLevel = 2;
     currentJobId = jobId;
@@ -374,12 +374,49 @@
     const inProg = job.tasks.filter(t => t.status === 'active').length;
     const sched = job.tasks.filter(t => t.status === 'scheduled').length;
     const totalDuration = daysBetween(parseDate(job.startDate), parseDate(job.endDate)) + 1;
+    const projectDisplayName = job.customer + ' — ' + job.type;
     $statsBar.innerHTML =
-      '<div class="project-title"><span class="status-dot ' + job.status + '"></span>' + job.customer + ' — ' + job.type + '</div>' +
+      '<div class="project-title"><span class="status-dot ' + job.status + '"></span><span class="project-name-text" id="projectNameText">' + projectDisplayName + '</span><button class="edit-name-btn" id="editNameBtn" title="Edit project name">✏️</button></div>' +
       '<div class="stat"><strong>' + done + '</strong> Complete</div>' +
       '<div class="stat"><strong>' + inProg + '</strong> In Progress</div>' +
       '<div class="stat"><strong>' + sched + '</strong> Scheduled</div>' +
       '<div class="stat"><strong>' + totalDuration + '</strong> Days Total</div>';
+
+    // Editable project name
+    setTimeout(function() {
+      const editBtn = document.getElementById('editNameBtn');
+      if (editBtn) {
+        editBtn.addEventListener('click', function() {
+          const nameEl = document.getElementById('projectNameText');
+          const currentName = job.customer;
+          const currentType = job.type;
+          nameEl.innerHTML = '<input type="text" id="editCustomerInput" class="inline-edit" value="' + currentName.replace(/"/g, '&quot;') + '" placeholder="Customer name" /> — <input type="text" id="editTypeInput" class="inline-edit" value="' + currentType.replace(/"/g, '&quot;') + '" placeholder="Project type" /><button class="inline-save-btn" id="saveNameBtn">Save</button><button class="inline-cancel-btn" id="cancelNameBtn">Cancel</button>';
+          editBtn.style.display = 'none';
+          document.getElementById('editCustomerInput').focus();
+
+          document.getElementById('saveNameBtn').addEventListener('click', function() {
+            const newCustomer = document.getElementById('editCustomerInput').value.trim();
+            const newType = document.getElementById('editTypeInput').value.trim();
+            if (newCustomer) job.customer = newCustomer;
+            if (newType) job.type = newType;
+            saveState();
+            renderProject(jobId);
+          });
+
+          document.getElementById('cancelNameBtn').addEventListener('click', function() {
+            renderProject(jobId);
+          });
+
+          // Save on Enter
+          ['editCustomerInput', 'editTypeInput'].forEach(function(id) {
+            document.getElementById(id).addEventListener('keydown', function(e) {
+              if (e.key === 'Enter') document.getElementById('saveNameBtn').click();
+              if (e.key === 'Escape') document.getElementById('cancelNameBtn').click();
+            });
+          });
+        });
+      }
+    }, 0);
 
     updateToggle();
 
@@ -781,15 +818,15 @@
 
   // ── Toggle buttons ──
   function updateToggle() {
-    $btnProjects.classList.toggle('active', currentLevel === 1);
-    $btnTasks.classList.toggle('active', currentLevel === 2);
+    $btnTimeline.classList.toggle('active', currentLevel === 1);
+    $btnProjects.classList.toggle('active', currentLevel === 2);
   }
 
-  function showProjects() {
+  function showTimeline() {
     renderPortfolio();
   }
 
-  function showTasks() {
+  function showProjects() {
     if (currentJobId) {
       renderProject(currentJobId);
     } else if (jobs.length > 0) {
@@ -1207,8 +1244,8 @@
 
   // ── Public API ──
   window.app = {
+    showTimeline,
     showProjects,
-    showTasks,
     updateTaskStatus,
     closeDetail
   };

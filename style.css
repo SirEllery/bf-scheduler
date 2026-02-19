@@ -1,4 +1,4 @@
-/* style.css — Bath Foundry Project Timeline */
+/* style.css — Bath Foundry Schedule */
 
 :root {
   --bg: #0d1117;
@@ -1009,6 +1009,57 @@ html, body {
   color: var(--text);
   margin-right: auto;
   padding-right: 16px;
+}
+
+.edit-name-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  opacity: 0.4;
+  transition: opacity var(--transition);
+}
+
+.edit-name-btn:hover {
+  opacity: 1;
+}
+
+.inline-edit {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: inherit;
+  width: 140px;
+}
+
+.inline-edit:focus {
+  outline: none;
+  border-color: var(--active);
+}
+
+.inline-save-btn, .inline-cancel-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: 6px;
+  transition: background var(--transition);
+}
+
+.inline-save-btn:hover {
+  background: var(--active);
+  color: #000;
+}
+
+.inline-cancel-btn:hover {
+  background: var(--border);
 }
 
 /* materials-header styles moved to .bottom-panel-header */
