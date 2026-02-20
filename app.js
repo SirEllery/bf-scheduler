@@ -283,6 +283,20 @@
   }
 
   // ── Render Level 1: Timeline ──
+  // ── Scroll position preservation ──
+  let savedScrollLeft = null;
+
+  function saveScrollPos() {
+    savedScrollLeft = $timelineContainer.scrollLeft;
+  }
+
+  function restoreScrollPos() {
+    if (savedScrollLeft !== null) {
+      $timelineContainer.scrollLeft = savedScrollLeft;
+      savedScrollLeft = null;
+    }
+  }
+
   // ── Infinite scroll state ──
   let infiniteState = null;
   let scrollHandler = null;
@@ -665,8 +679,10 @@
       attachInfiniteScroll(function(r) { renderProject(jobId, r, false); }, dayWidth);
     }
 
-    // Scroll to today (or project start) on first render
-    if (doScroll !== false && !existingRange) {
+    // Scroll: restore saved position if returning from task detail, otherwise scroll to today
+    if (savedScrollLeft !== null) {
+      restoreScrollPos();
+    } else if (doScroll !== false && !existingRange) {
       scrollToToday(range, dayWidth, getSidebarW());
     }
   }
@@ -926,6 +942,8 @@
 
   // ── Render Level 3: Task Detail (fully editable) ──
   function renderTaskDetail(jobId, taskIndex) {
+    // Save scroll before any re-render
+    if (currentLevel !== 3) saveScrollPos();
     currentLevel = 3;
     currentJobId = jobId;
     currentTaskIndex = taskIndex;
@@ -998,6 +1016,7 @@
 
     // ── Bind editable fields ──
     function applyFieldChanges() {
+      saveScrollPos();
       const newName = document.getElementById('taskNameInput').value.trim();
       const newOwner = document.getElementById('taskOwnerInput').value.trim();
       const newStatus = document.getElementById('taskStatus').value;
@@ -1136,6 +1155,7 @@
 
   // ── Navigation ──
   function updateTaskStatus(val) {
+    saveScrollPos();
     const job = jobs.find(j => j.id === currentJobId);
     if (job && job.tasks[currentTaskIndex]) {
       job.tasks[currentTaskIndex].status = val;
@@ -1153,10 +1173,11 @@
   }
 
   function closeDetail() {
+    saveScrollPos();
     $detailPanel.classList.remove('visible');
     if (currentLevel === 3) {
       currentLevel = 2;
-      updateBreadcrumb();
+      updateToggle();
     }
   }
 
