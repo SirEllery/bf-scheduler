@@ -283,6 +283,23 @@
   }
 
   // ── Render Level 1: Timeline ──
+  // ── Weekend overlay helper ──
+  function weekendOverlaysHtml(startDate, endDate, dayWidth) {
+    var html = '';
+    var d = new Date(startDate);
+    var barStart = new Date(startDate);
+    while (d <= endDate) {
+      var dow = d.getDay();
+      if (dow === 0 || dow === 6) {
+        var offsetDays = daysBetween(barStart, d);
+        var left = offsetDays * dayWidth;
+        html += '<div class="bar-weekend" style="left:' + left + 'px;width:' + dayWidth + 'px"><div class="bar-weekend-stripe"></div></div>';
+      }
+      d = addDays(d, 1);
+    }
+    return html;
+  }
+
   // ── Scroll position preservation ──
   let savedScrollLeft = null;
 
@@ -427,6 +444,7 @@
       bodyHtml += '</div>';
       bodyHtml += '<div class="row-track">';
       bodyHtml += '<div class="bar' + barClass + '" data-job="' + job.id + '" data-type="job" style="left:' + (leftDays * dayWidth) + 'px;width:' + (widthDays * dayWidth - 2) + 'px;background:' + jobColor + '">';
+      bodyHtml += weekendOverlaysHtml(start, end, dayWidth);
       bodyHtml += '<div class="drag-handle drag-handle-left" data-side="left"></div>';
       bodyHtml += '<span class="bar-label">' + job.customer + ' (' + pct + '%)</span>';
       bodyHtml += '<div class="drag-handle drag-handle-right" data-side="right"></div>';
@@ -614,6 +632,7 @@
       bodyHtml += '</div>';
       bodyHtml += '<div class="row-track">';
       bodyHtml += '<div class="bar' + barClass + '" data-task="' + i + '" data-type="task" data-job="' + jobId + '" style="left:' + (leftDays * dayWidth) + 'px;width:' + Math.max(widthDays * dayWidth - 2, 24) + 'px;background:' + color + '">';
+      bodyHtml += weekendOverlaysHtml(tStart, tEnd, dayWidth);
       bodyHtml += '<div class="drag-handle drag-handle-left" data-side="left"></div>';
       bodyHtml += '<span class="bar-label">' + task.name + '</span>';
       bodyHtml += '<div class="drag-handle drag-handle-right" data-side="right"></div>';
