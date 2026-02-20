@@ -376,14 +376,18 @@
     const totalDuration = daysBetween(parseDate(job.startDate), parseDate(job.endDate)) + 1;
     const projectDisplayName = job.customer + ' — ' + job.type;
     $statsBar.innerHTML =
-      '<div class="project-title"><span class="status-dot ' + job.status + '"></span><span class="project-name-text" id="projectNameText">' + projectDisplayName + '</span><button class="edit-name-btn" id="editNameBtn" title="Edit project name">✏️</button></div>' +
+      '<div class="project-title"><span class="status-dot ' + job.status + '"></span><span class="project-name-text" id="projectNameText">' + projectDisplayName + '</span><button class="edit-name-btn" id="editNameBtn" title="Edit project name">✏️</button><button class="delete-project-btn" id="deleteProjectBtn" title="Delete project">🗑️</button></div>' +
       '<div class="stat"><strong>' + done + '</strong> Complete</div>' +
       '<div class="stat"><strong>' + inProg + '</strong> In Progress</div>' +
       '<div class="stat"><strong>' + sched + '</strong> Scheduled</div>' +
       '<div class="stat"><strong>' + totalDuration + '</strong> Days Total</div>';
 
-    // Editable project name
+    // Delete project + Editable project name
     setTimeout(function() {
+      const delProjBtn = document.getElementById('deleteProjectBtn');
+      if (delProjBtn) {
+        delProjBtn.addEventListener('click', function() { deleteProject(jobId); });
+      }
       const editBtn = document.getElementById('editNameBtn');
       if (editBtn) {
         editBtn.addEventListener('click', function() {
@@ -571,13 +575,7 @@
       notes: ''
     });
 
-    // Update job date range to encompass new task
-    const allStarts = job.tasks.map(t => parseDate(t.start));
-    const allEnds = job.tasks.map(t => parseDate(t.end));
-    job.startDate = dateToString(new Date(Math.min(...allStarts)));
-    job.endDate = dateToString(new Date(Math.max(...allEnds)));
-
-    saveState();
+    autoStaggerTasks(job);
     renderProject(jobId);
   }
 
@@ -724,7 +722,45 @@
     });
   }
 
-  // ── Render Level 3: Task Detail ──
+  // ── Auto-stagger: sort tasks by start date, update job date range ──
+  function autoStaggerTasks(job) {
+    job.tasks.sort(function(a, b) {
+      return parseDate(a.start) - parseDate(b.start);
+    });
+    if (job.tasks.length > 0) {
+      const allStarts = job.tasks.map(function(t) { return parseDate(t.start); });
+      const allEnds = job.tasks.map(function(t) { return parseDate(t.end); });
+      job.startDate = dateToString(new Date(Math.min.apply(null, allStarts)));
+      job.endDate = dateToString(new Date(Math.max.apply(null, allEnds)));
+    }
+    saveState();
+  }
+
+  // ── Delete a project ──
+  function deleteProject(jobId) {
+    showConfirmDialog('Delete this entire project?', function(confirmed) {
+      if (!confirmed) return;
+      jobs = jobs.filter(function(j) { return j.id !== jobId; });
+      saveState();
+      $detailPanel.classList.remove('visible');
+      renderPortfolio();
+    });
+  }
+
+  // ── Delete a task ──
+  function deleteTask(jobId, taskIndex) {
+    showConfirmDialog('Delete this task?', function(confirmed) {
+      if (!confirmed) return;
+      const job = jobs.find(function(j) { return j.id === jobId; });
+      if (!job) return;
+      job.tasks.splice(taskIndex, 1);
+      autoStaggerTasks(job);
+      $detailPanel.classList.remove('visible');
+      renderProject(jobId);
+    });
+  }
+
+  // ── Render Level 3: Task Detail (fully editable) ──
   function renderTaskDetail(jobId, taskIndex) {
     currentLevel = 3;
     currentJobId = jobId;
@@ -743,15 +779,26 @@
     const color = PHASE_COLORS[task.color] || PHASE_COLORS.other;
     const dur = daysBetween(parseDate(task.start), parseDate(task.end)) + 1;
 
+    // Build color picker options
+    let colorOptionsHtml = '';
+    const colorKeys = Object.keys(PHASE_COLORS);
+    for (let ci = 0; ci < colorKeys.length; ci++) {
+      const ck = colorKeys[ci];
+      const sel = task.color === ck ? ' selected' : '';
+      colorOptionsHtml += '<div class="color-option' + sel + '" data-color="' + ck + '" style="background:' + PHASE_COLORS[ck] + '" title="' + ck + '"></div>';
+    }
+
     $detailContent.innerHTML =
       '<h2><span class="color-swatch" style="background:' + color + '"></span>' + task.name + '</h2>' +
       '<div class="detail-group">' +
-        '<div class="detail-field"><label>Project</label><div class="value">' + job.customer + ' — ' + job.type + '</div></div>' +
-      '</div>' +
-      '<div class="detail-group">' +
-        '<div class="detail-field"><label>Owner / Assigned</label><div class="value">' + task.owner + '</div></div>' +
+        '<div class="detail-field"><label>Task Name</label>' +
+          '<input type="text" id="taskNameInput" value="' + task.name.replace(/"/g, '&quot;') + '" />' +
+        '</div>' +
+        '<div class="detail-field"><label>Owner / Assigned</label>' +
+          '<input type="text" id="taskOwnerInput" value="' + (task.owner || '').replace(/"/g, '&quot;') + '" placeholder="e.g. Crew A, Mike (Sub)" />' +
+        '</div>' +
         '<div class="detail-field"><label>Status</label>' +
-          '<select id="taskStatus" onchange="app.updateTaskStatus(this.value)">' +
+          '<select id="taskStatus">' +
             '<option value="scheduled"' + (task.status === 'scheduled' ? ' selected' : '') + '>Scheduled</option>' +
             '<option value="active"' + (task.status === 'active' ? ' selected' : '') + '>In Progress</option>' +
             '<option value="complete"' + (task.status === 'complete' ? ' selected' : '') + '>Complete</option>' +
@@ -759,9 +806,18 @@
         '</div>' +
       '</div>' +
       '<div class="detail-group">' +
-        '<div class="detail-field"><label>Start Date</label><div class="value">' + formatDate(parseDate(task.start)) + '</div></div>' +
-        '<div class="detail-field"><label>End Date</label><div class="value">' + formatDate(parseDate(task.end)) + '</div></div>' +
-        '<div class="detail-field"><label>Duration</label><div class="value">' + dur + ' day' + (dur > 1 ? 's' : '') + '</div></div>' +
+        '<div class="detail-field"><label>Start Date</label>' +
+          '<input type="date" id="taskStartInput" value="' + task.start + '" />' +
+        '</div>' +
+        '<div class="detail-field"><label>End Date</label>' +
+          '<input type="date" id="taskEndInput" value="' + task.end + '" />' +
+        '</div>' +
+        '<div class="detail-field"><label>Duration</label><div class="value" id="taskDuration">' + dur + ' day' + (dur > 1 ? 's' : '') + '</div></div>' +
+      '</div>' +
+      '<div class="detail-group">' +
+        '<div class="detail-field"><label>Phase Color</label>' +
+          '<div class="color-options" id="colorOptions">' + colorOptionsHtml + '</div>' +
+        '</div>' +
       '</div>' +
       '<div class="detail-group">' +
         '<div class="detail-field"><label>Notes</label>' +
@@ -771,7 +827,76 @@
             '<button id="taskNoteAddBtn" class="note-add-btn">+ Add</button>' +
           '</div>' +
         '</div>' +
+      '</div>' +
+      '<div class="detail-group">' +
+        '<button class="delete-btn" id="deleteTaskBtn">Delete Task</button>' +
       '</div>';
+
+    // ── Bind editable fields ──
+    function applyFieldChanges() {
+      const newName = document.getElementById('taskNameInput').value.trim();
+      const newOwner = document.getElementById('taskOwnerInput').value.trim();
+      const newStatus = document.getElementById('taskStatus').value;
+      const newStart = document.getElementById('taskStartInput').value;
+      const newEnd = document.getElementById('taskEndInput').value;
+
+      if (newName) task.name = newName;
+      task.owner = newOwner;
+      task.status = newStatus;
+
+      if (newStart && newEnd && parseDate(newStart) <= parseDate(newEnd)) {
+        task.start = newStart;
+        task.end = newEnd;
+      }
+
+      // Update job status
+      const allComplete = job.tasks.every(function(t) { return t.status === 'complete'; });
+      const anyActive = job.tasks.some(function(t) { return t.status === 'active'; });
+      if (allComplete) job.status = 'completed';
+      else if (anyActive) job.status = 'active';
+      else job.status = 'scheduled';
+
+      autoStaggerTasks(job);
+      renderProject(jobId);
+
+      // Update duration display
+      var durEl = document.getElementById('taskDuration');
+      if (durEl) {
+        var d = daysBetween(parseDate(task.start), parseDate(task.end)) + 1;
+        durEl.textContent = d + ' day' + (d > 1 ? 's' : '');
+      }
+    }
+
+    // Save on change/blur for all inputs
+    ['taskNameInput', 'taskOwnerInput'].forEach(function(id) {
+      var el = document.getElementById(id);
+      el.addEventListener('change', applyFieldChanges);
+    });
+    document.getElementById('taskStatus').addEventListener('change', applyFieldChanges);
+    ['taskStartInput', 'taskEndInput'].forEach(function(id) {
+      var el = document.getElementById(id);
+      el.addEventListener('change', applyFieldChanges);
+    });
+
+    // Color picker
+    document.getElementById('colorOptions').addEventListener('click', function(e) {
+      var opt = e.target.closest('.color-option');
+      if (!opt) return;
+      task.color = opt.dataset.color;
+      // Update selection
+      this.querySelectorAll('.color-option').forEach(function(o) { o.classList.remove('selected'); });
+      opt.classList.add('selected');
+      saveState();
+      renderProject(jobId);
+      // Find updated task index after possible re-sort
+      var newIdx = job.tasks.indexOf(task);
+      if (newIdx >= 0) renderTaskDetail(jobId, newIdx);
+    });
+
+    // Delete task
+    document.getElementById('deleteTaskBtn').addEventListener('click', function() {
+      deleteTask(jobId, taskIndex);
+    });
 
     // Task notes (list-based)
     if (!task.notesList) task.notesList = [];
@@ -989,7 +1114,7 @@
 
     const dx = e.clientX - dragState.startX;
     const dayDelta = Math.round(dx / dragState.dayWidth);
-    const minWidth = dragState.dayWidth;
+    const minWidth = dragState.dayWidth - 2;
 
     if (dragState.mode === 'move') {
       // Move entire bar
@@ -1063,11 +1188,7 @@
           } else {
             task.end = dateToString(addDays(parseDate(task.end), dayDelta));
           }
-          const allStarts = job.tasks.map(t => parseDate(t.start));
-          const allEnds = job.tasks.map(t => parseDate(t.end));
-          job.startDate = dateToString(new Date(Math.min(...allStarts)));
-          job.endDate = dateToString(new Date(Math.max(...allEnds)));
-          saveState();
+          autoStaggerTasks(job);
           renderProject(ds.jobId);
         }
       }
@@ -1137,7 +1258,7 @@
     const touch = e.touches[0];
     const dx = touch.clientX - dragState.startX;
     const dayDelta = Math.round(dx / dragState.dayWidth);
-    const minWidth = dragState.dayWidth;
+    const minWidth = dragState.dayWidth - 2;
 
     if (dragState.mode === 'left') {
       const newLeft = dragState.origLeft + dayDelta * dragState.dayWidth;
@@ -1189,11 +1310,7 @@
           } else {
             task.end = dateToString(addDays(parseDate(task.end), dayDelta));
           }
-          const allStarts = job.tasks.map(t => parseDate(t.start));
-          const allEnds = job.tasks.map(t => parseDate(t.end));
-          job.startDate = dateToString(new Date(Math.min(...allStarts)));
-          job.endDate = dateToString(new Date(Math.max(...allEnds)));
-          saveState();
+          autoStaggerTasks(job);
           renderProject(dsT.jobId);
         }
       }
@@ -1247,7 +1364,9 @@
     showTimeline,
     showProjects,
     updateTaskStatus,
-    closeDetail
+    closeDetail,
+    deleteProject,
+    deleteTask
   };
 
   // ── Init ──
