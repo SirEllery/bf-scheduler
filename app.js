@@ -17,7 +17,33 @@
   }
 
   function saveState() {
-    localStorage.setItem('bf_jobs', JSON.stringify(jobs));
+    try {
+      localStorage.setItem('bf_jobs', JSON.stringify(jobs));
+    } catch(e) {
+      console.warn('localStorage save failed:', e);
+      alert('Storage full — try removing some photos.');
+    }
+  }
+
+  // ── Resize image to thumbnail before storing ──
+  function resizeImage(dataUrl, maxWidth, callback) {
+    var img = new Image();
+    img.onload = function() {
+      var w = img.width;
+      var h = img.height;
+      if (w > maxWidth) {
+        h = Math.round(h * maxWidth / w);
+        w = maxWidth;
+      }
+      var canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      callback(canvas.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = function() { callback(dataUrl); };
+    img.src = dataUrl;
   }
 
   const SIDEBAR_W = 160; // sidebar width in px
@@ -694,22 +720,40 @@
     }
     $photosGrid.innerHTML = photosHtml;
 
-    // Photo upload
-    const uploadInput = document.getElementById('photoUploadInput');
-    const newUpload = uploadInput.cloneNode(true);
-    uploadInput.parentNode.replaceChild(newUpload, uploadInput);
-    newUpload.addEventListener('change', function() {
-      const files = Array.from(this.files);
-      files.forEach(function(file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          job.photos.push(e.target.result);
-          saveState();
-          renderMaterials(job);
-        };
-        reader.readAsDataURL(file);
+    // Photo upload — fresh input each render to avoid stale refs
+    var uploadLabel = document.getElementById('photoUploadLabel');
+    if (uploadLabel) {
+      var freshInput = document.createElement('input');
+      freshInput.type = 'file';
+      freshInput.id = 'photoUploadInput';
+      freshInput.accept = 'image/*';
+      freshInput.multiple = true;
+      freshInput.style.display = 'none';
+      // Remove old input, insert fresh one
+      var oldInput = uploadLabel.querySelector('input');
+      if (oldInput) uploadLabel.removeChild(oldInput);
+      uploadLabel.insertBefore(freshInput, uploadLabel.firstChild);
+
+      freshInput.addEventListener('change', function() {
+        var files = Array.from(this.files);
+        var pending = files.length;
+        if (!pending) return;
+        files.forEach(function(file) {
+          var reader = new FileReader();
+          reader.onload = function(e) {
+            resizeImage(e.target.result, 400, function(thumb) {
+              job.photos.push(thumb);
+              pending--;
+              if (pending <= 0) {
+                saveState();
+                renderMaterials(job);
+              }
+            });
+          };
+          reader.readAsDataURL(file);
+        });
       });
-    });
+    }
 
     // Photo remove
     $photosGrid.querySelectorAll('.photo-remove').forEach(function(btn) {
