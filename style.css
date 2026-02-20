@@ -138,6 +138,34 @@ html, body {
 .stat { white-space: nowrap; }
 .stat strong { color: var(--text); font-weight: 600; }
 
+/* ── Floating Month Label ── */
+.floating-month {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text);
+  background: var(--surface);
+  padding: 2px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  z-index: 30;
+  pointer-events: none;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* ── Month boundary grid lines ── */
+.grid-line.grid-month {
+  background: var(--text-dim);
+  width: 2px;
+}
+
 /* ── Main Area — fixed height so bottom bar doesn't compress it ── */
 #mainArea {
   height: calc(100vh - 100px);
@@ -202,6 +230,7 @@ html, body {
   font-size: 12px;
   font-weight: 600;
   color: var(--text);
+  border-left: 2px solid var(--text-dim);
   padding: 4px 0;
   text-align: center;
   border-right: 1px solid var(--border-light);

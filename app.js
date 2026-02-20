@@ -436,6 +436,46 @@
     return html;
   }
 
+  // ── Floating month label ──
+  const $floatingMonth = document.getElementById('floatingMonth');
+  let monthBoundaries = []; // [{x: px from content left, label: 'February 2026'}, ...]
+
+  function buildMonthBoundaries(range, dayWidth) {
+    var boundaries = [];
+    var d = new Date(range.rangeStart);
+    while (d < addDays(range.rangeStart, range.totalDays)) {
+      var monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+      var visEnd = monthEnd > addDays(range.rangeStart, range.totalDays) ? addDays(range.rangeStart, range.totalDays) : monthEnd;
+      var daysInView = daysBetween(d, visEnd) + 1;
+      var xStart = daysBetween(range.rangeStart, d) * dayWidth;
+      boundaries.push({
+        xStart: xStart,
+        xEnd: xStart + daysInView * dayWidth,
+        label: MONTH_FULL[d.getMonth()] + ' ' + d.getFullYear()
+      });
+      d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    }
+    monthBoundaries = boundaries;
+  }
+
+  function updateFloatingMonth() {
+    if (!monthBoundaries.length) { $floatingMonth.style.opacity = '0'; return; }
+    var scrollLeft = $timelineContainer.scrollLeft;
+    var sidebarW = getSidebarW();
+    var viewCenter = scrollLeft + $timelineContainer.clientWidth / 2 - sidebarW;
+
+    var current = monthBoundaries[0];
+    for (var i = 0; i < monthBoundaries.length; i++) {
+      if (viewCenter >= monthBoundaries[i].xStart) {
+        current = monthBoundaries[i];
+      }
+    }
+    $floatingMonth.textContent = current.label;
+    $floatingMonth.style.opacity = '1';
+  }
+
+  $timelineContainer.addEventListener('scroll', updateFloatingMonth);
+
   // ── Scroll position preservation ──
   let savedScrollLeft = null;
 
@@ -547,17 +587,24 @@
     const sorted = [...jobs].sort((a,b) => parseDate(a.startDate) - parseDate(b.startDate));
     let bodyHtml = '<div class="timeline-body" style="position:relative">';
 
-    // Grid lines (every day, stronger on Mondays, shaded weekends)
+    // Grid lines (every day, stronger on Mondays, shaded weekends, month boundaries)
     for (let gi = 0; gi < range.totalDays; gi++) {
       const gDay = addDays(range.rangeStart, gi);
       const x = gi * dayWidth + getSidebarW();
       const isMon = gDay.getDay() === 1;
       const isWeekend = gDay.getDay() === 0 || gDay.getDay() === 6;
+      const isMonthStart = gDay.getDate() === 1;
       if (isWeekend) {
         bodyHtml += '<div class="grid-line weekend-bg" style="left:' + x + 'px;width:' + dayWidth + 'px"></div>';
       }
-      bodyHtml += '<div class="grid-line' + (isMon ? ' grid-monday' : '') + '" style="left:' + x + 'px"></div>';
+      var gridCls = 'grid-line';
+      if (isMonthStart) gridCls += ' grid-month';
+      else if (isMon) gridCls += ' grid-monday';
+      bodyHtml += '<div class="' + gridCls + '" style="left:' + x + 'px"></div>';
     }
+
+    // Build month boundaries for floating label
+    buildMonthBoundaries(range, dayWidth);
 
     // Today line (always render — range is huge)
     const tx = daysBetween(range.rangeStart, today) * dayWidth + getSidebarW();
@@ -646,6 +693,7 @@
     if (doScroll !== false && !existingRange) {
       scrollToToday(range, dayWidth, getSidebarW());
     }
+    setTimeout(updateFloatingMonth, 50);
   }
 
   // ── Render Level 2: Project (shows tasks) ──
@@ -744,16 +792,22 @@
 
     let bodyHtml = '<div class="timeline-body" style="position:relative">';
 
-    // Daily grid lines
+    // Daily grid lines (with month boundaries)
     for (let gi = 0; gi <= range.totalDays; gi++) {
       const gDay = addDays(range.rangeStart, gi);
       const isWeekend = gDay.getDay() === 0 || gDay.getDay() === 6;
+      const isMonthStart = gDay.getDate() === 1;
       const x = gi * dayWidth + getSidebarW();
       if (isWeekend) {
         bodyHtml += '<div class="grid-line weekend-bg" style="left:' + x + 'px;width:' + dayWidth + 'px"></div>';
       }
-      bodyHtml += '<div class="grid-line" style="left:' + x + 'px"></div>';
+      var gcls = 'grid-line';
+      if (isMonthStart) gcls += ' grid-month';
+      bodyHtml += '<div class="' + gcls + '" style="left:' + x + 'px"></div>';
     }
+
+    // Build month boundaries for floating label
+    buildMonthBoundaries(range, dayWidth);
 
     // Today line (always)
     const tx = daysBetween(range.rangeStart, today) * dayWidth + getSidebarW();
@@ -847,6 +901,7 @@
     } else if (doScroll !== false && !existingRange) {
       scrollToToday(range, dayWidth, getSidebarW());
     }
+    setTimeout(updateFloatingMonth, 50);
   }
 
   // ── Pick next unused phase color ──
