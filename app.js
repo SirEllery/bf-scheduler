@@ -46,7 +46,9 @@
     img.src = dataUrl;
   }
 
-  const SIDEBAR_W = 160; // sidebar width in px
+  function getSidebarW() {
+    return window.innerWidth <= 768 ? 120 : 160;
+  }
 
   // ── Name Helper ──
   function shortName(fullName) {
@@ -179,7 +181,7 @@
     }
 
     let html = '<div class="timeline-header">';
-    html += '<div class="timeline-sidebar-header" style="min-width:' + SIDEBAR_W + 'px;max-width:' + SIDEBAR_W + 'px">Projects</div>';
+    html += '<div class="timeline-sidebar-header">Projects</div>';
     html += '<div class="timeline-dates" style="width:' + trackWidth + 'px">';
 
     // Layer 1: Month row
@@ -233,7 +235,7 @@
     }
 
     let html = '<div class="timeline-header">';
-    html += '<div class="timeline-sidebar-header" style="min-width:' + SIDEBAR_W + 'px;max-width:' + SIDEBAR_W + 'px">Tasks</div>';
+    html += '<div class="timeline-sidebar-header">Tasks</div>';
     html += '<div class="timeline-dates" style="width:' + trackWidth + 'px">';
 
     // Month row
@@ -299,7 +301,7 @@
     // Grid lines (every day, stronger on Mondays, shaded weekends)
     for (let gi = 0; gi < range.totalDays; gi++) {
       const gDay = addDays(range.rangeStart, gi);
-      const x = gi * dayWidth + SIDEBAR_W;
+      const x = gi * dayWidth + getSidebarW();
       const isMon = gDay.getDay() === 1;
       const isWeekend = gDay.getDay() === 0 || gDay.getDay() === 6;
       if (isWeekend) {
@@ -310,7 +312,7 @@
 
     // Today line
     if (today >= range.rangeStart && today <= addDays(range.rangeStart, range.totalDays)) {
-      const tx = daysBetween(range.rangeStart, today) * dayWidth + SIDEBAR_W;
+      const tx = daysBetween(range.rangeStart, today) * dayWidth + getSidebarW();
       bodyHtml += '<div class="today-line" style="left:' + tx + 'px"></div>';
     }
 
@@ -349,7 +351,7 @@
     bodyHtml += '</div>';
 
     $timeline.innerHTML = headerHtml + bodyHtml;
-    $timeline.style.width = (trackWidth + SIDEBAR_W) + 'px';
+    $timeline.style.width = (trackWidth + getSidebarW()) + 'px';
     $timeline.classList.add('view-enter');
     setTimeout(() => $timeline.classList.remove('view-enter'), 300);
 
@@ -382,7 +384,7 @@
     });
 
     // Scroll to today
-    scrollToToday(range, dayWidth, SIDEBAR_W);
+    scrollToToday(range, dayWidth, getSidebarW());
   }
 
   // ── Render Level 2: Project (shows tasks) ──
@@ -467,7 +469,7 @@
     for (let gi = 0; gi <= range.totalDays; gi++) {
       const gDay = addDays(range.rangeStart, gi);
       const isWeekend = gDay.getDay() === 0 || gDay.getDay() === 6;
-      const x = gi * dayWidth + SIDEBAR_W;
+      const x = gi * dayWidth + getSidebarW();
       if (isWeekend) {
         bodyHtml += '<div class="grid-line weekend-bg" style="left:' + x + 'px;width:' + dayWidth + 'px"></div>';
       }
@@ -476,7 +478,7 @@
 
     // Today
     if (today >= range.rangeStart && today <= addDays(range.rangeStart, range.totalDays)) {
-      const tx = daysBetween(range.rangeStart, today) * dayWidth + SIDEBAR_W;
+      const tx = daysBetween(range.rangeStart, today) * dayWidth + getSidebarW();
       bodyHtml += '<div class="today-line" style="left:' + tx + 'px"></div>';
     }
 
@@ -516,7 +518,7 @@
     // Materials section is rendered outside the scrollable timeline (see below)
 
     $timeline.innerHTML = hdrHtml + bodyHtml;
-    $timeline.style.width = (trackWidth + SIDEBAR_W) + 'px';
+    $timeline.style.width = (trackWidth + getSidebarW()) + 'px';
     $timeline.classList.add('view-enter');
     setTimeout(() => $timeline.classList.remove('view-enter'), 300);
 
@@ -555,7 +557,7 @@
       addTaskBtn.addEventListener('click', function() { addTask(jobId); });
     }
 
-    scrollToToday(range, dayWidth, SIDEBAR_W);
+    scrollToToday(range, dayWidth, getSidebarW());
   }
 
   // ── Pick next unused phase color ──
