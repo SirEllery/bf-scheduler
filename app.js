@@ -111,6 +111,22 @@
   const $materialsList = document.getElementById('materialsList');
   const $photosGrid = document.getElementById('photosGrid');
 
+  // ── Lightbox ──
+  function openLightbox(src) {
+    var overlay = document.createElement('div');
+    overlay.className = 'lightbox-overlay';
+    overlay.innerHTML = '<button class="lightbox-close">×</button><img class="lightbox-img" src="' + src + '" />';
+    document.body.appendChild(overlay);
+
+    function close() { if (overlay.parentNode) document.body.removeChild(overlay); }
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay || e.target.classList.contains('lightbox-close')) close();
+    });
+    document.addEventListener('keydown', function handler(e) {
+      if (e.key === 'Escape') { close(); document.removeEventListener('keydown', handler); }
+    });
+  }
+
   // ── Tooltip ──
   function showTooltip(e, html) {
     $tooltip.innerHTML = html;
@@ -851,6 +867,13 @@
         });
       });
     }
+
+    // Photo lightbox
+    $photosGrid.querySelectorAll('.photo-thumb').forEach(function(img) {
+      img.addEventListener('click', function() {
+        openLightbox(this.src);
+      });
+    });
 
     // Photo remove
     $photosGrid.querySelectorAll('.photo-remove').forEach(function(btn) {
