@@ -512,20 +512,40 @@ html, body {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 2px;
+  width: 3px;
   background: var(--today);
   z-index: 15;
   pointer-events: none;
+  box-shadow: 0 0 8px rgba(224, 108, 117, 0.5), 0 0 16px rgba(224, 108, 117, 0.2);
 }
 
 .today-line::before {
-  content: 'Today';
+  content: 'TODAY';
   position: absolute;
-  top: -20px;
-  left: -18px;
-  font-size: 10px;
-  color: var(--today);
-  font-weight: 600;
+  top: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #fff;
+  background: var(--today);
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.today-line::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid var(--today);
 }
 
 /* ── Week Grid Lines ── */

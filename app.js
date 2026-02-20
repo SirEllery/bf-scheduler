@@ -267,7 +267,66 @@
   }
 
   // ── Render Level 1: Timeline ──
-  function renderPortfolio() {
+  // ── Infinite scroll state ──
+  let infiniteState = null;
+  let scrollHandler = null;
+
+  function detachInfiniteScroll() {
+    if (scrollHandler) {
+      $timelineContainer.removeEventListener('scroll', scrollHandler);
+      scrollHandler = null;
+    }
+    infiniteState = null;
+  }
+
+  function attachInfiniteScroll(renderFn, dayWidth) {
+    var expandLock = false;
+    scrollHandler = function() {
+      if (expandLock || !infiniteState) return;
+      var el = $timelineContainer;
+      var threshold = 200;
+      var scrollRight = el.scrollWidth - el.scrollLeft - el.clientWidth;
+
+      if (scrollRight < threshold) {
+        expandLock = true;
+        expandTimeline('right', dayWidth, renderFn);
+        setTimeout(function() { expandLock = false; }, 100);
+      } else if (el.scrollLeft < threshold) {
+        expandLock = true;
+        expandTimeline('left', dayWidth, renderFn);
+        setTimeout(function() { expandLock = false; }, 100);
+      }
+    };
+    $timelineContainer.addEventListener('scroll', scrollHandler);
+  }
+
+  function expandTimeline(direction, dayWidth, renderFn) {
+    if (!infiniteState) return;
+    var oldScrollLeft = $timelineContainer.scrollLeft;
+    var expandDays = 91; // ~3 months
+
+    if (direction === 'right') {
+      infiniteState.totalDays += expandDays;
+      infiniteState.rangeEnd = addDays(infiniteState.rangeStart, infiniteState.totalDays);
+    } else {
+      var newStart = addDays(infiniteState.rangeStart, -expandDays);
+      newStart = getMonday(newStart);
+      var addedDays = daysBetween(newStart, infiniteState.rangeStart);
+      infiniteState.rangeStart = newStart;
+      infiniteState.totalDays += addedDays;
+      infiniteState.rangeEnd = addDays(infiniteState.rangeStart, infiniteState.totalDays);
+    }
+
+    renderFn(infiniteState, false); // re-render without scroll-to-today
+
+    if (direction === 'left') {
+      var addedPx = daysBetween(infiniteState.rangeStart, addDays(infiniteState.rangeStart, expandDays)) * dayWidth;
+      // Actually compute added days precisely
+      $timelineContainer.scrollLeft = oldScrollLeft + expandDays * dayWidth;
+    }
+  }
+
+  function renderPortfolio(existingRange, doScroll) {
     currentLevel = 1;
     currentJobId = null;
     currentTaskIndex = null;
@@ -286,10 +345,17 @@
 
     updateToggle();
 
-    // 3-month fixed window centered on today
-    const rangeStart = getMonday(addDays(today, -30)); // ~1 month back
-    const rangeEnd = addDays(rangeStart, 91); // 3 months total (~13 weeks)
-    const range = { rangeStart: rangeStart, rangeEnd: rangeEnd, totalDays: 91 };
+    var range;
+    if (existingRange) {
+      range = existingRange;
+    } else {
+      // Initial: 6 months back, 6 months forward
+      detachInfiniteScroll();
+      var rangeStart = getMonday(addDays(today, -182));
+      var totalDays = 365;
+      range = { rangeStart: rangeStart, rangeEnd: addDays(rangeStart, totalDays), totalDays: totalDays };
+    }
+    infiniteState = range;
 
     const dayWidth = 14;
     const { html: headerHtml, trackWidth } = buildHeader(range, dayWidth);
@@ -310,11 +376,9 @@
       bodyHtml += '<div class="grid-line' + (isMon ? ' grid-monday' : '') + '" style="left:' + x + 'px"></div>';
     }
 
-    // Today line
-    if (today >= range.rangeStart && today <= addDays(range.rangeStart, range.totalDays)) {
-      const tx = daysBetween(range.rangeStart, today) * dayWidth + getSidebarW();
-      bodyHtml += '<div class="today-line" style="left:' + tx + 'px"></div>';
-    }
+    // Today line (always render — range is huge)
+    const tx = daysBetween(range.rangeStart, today) * dayWidth + getSidebarW();
+    bodyHtml += '<div class="today-line" style="left:' + tx + 'px"></div>';
 
     for (let i = 0; i < sorted.length; i++) {
       const job = sorted[i];
@@ -352,8 +416,11 @@
 
     $timeline.innerHTML = headerHtml + bodyHtml;
     $timeline.style.width = (trackWidth + getSidebarW()) + 'px';
-    $timeline.classList.add('view-enter');
-    setTimeout(() => $timeline.classList.remove('view-enter'), 300);
+
+    if (!existingRange) {
+      $timeline.classList.add('view-enter');
+      setTimeout(() => $timeline.classList.remove('view-enter'), 300);
+    }
 
     // Add Project click
     document.getElementById('addProjectBtn').addEventListener('click', addProject);
@@ -383,12 +450,19 @@
       el.addEventListener('mouseleave', hideTooltip);
     });
 
-    // Scroll to today
-    scrollToToday(range, dayWidth, getSidebarW());
+    // Attach infinite scroll
+    if (!existingRange) {
+      attachInfiniteScroll(function(r) { renderPortfolio(r, false); }, dayWidth);
+    }
+
+    // Scroll to today on first render
+    if (doScroll !== false && !existingRange) {
+      scrollToToday(range, dayWidth, getSidebarW());
+    }
   }
 
   // ── Render Level 2: Project (shows tasks) ──
-  function renderProject(jobId) {
+  function renderProject(jobId, existingRange, doScroll) {
     currentLevel = 2;
     currentJobId = jobId;
     currentTaskIndex = null;
@@ -403,65 +477,79 @@
     const sched = job.tasks.filter(t => t.status === 'scheduled').length;
     const totalDuration = daysBetween(parseDate(job.startDate), parseDate(job.endDate)) + 1;
     const projectDisplayName = job.customer + ' — ' + job.type;
-    $statsBar.innerHTML =
-      '<div class="project-title"><span class="status-dot ' + job.status + '"></span><span class="project-name-text" id="projectNameText">' + projectDisplayName + '</span><button class="edit-name-btn" id="editNameBtn" title="Edit project name">✏️</button><button class="delete-project-btn" id="deleteProjectBtn" title="Delete project">🗑️</button></div>' +
-      '<div class="stat"><strong>' + done + '</strong> Complete</div>' +
-      '<div class="stat"><strong>' + inProg + '</strong> In Progress</div>' +
-      '<div class="stat"><strong>' + sched + '</strong> Scheduled</div>' +
-      '<div class="stat"><strong>' + totalDuration + '</strong> Days Total</div>';
 
-    // Delete project + Editable project name
-    setTimeout(function() {
-      const delProjBtn = document.getElementById('deleteProjectBtn');
-      if (delProjBtn) {
-        delProjBtn.addEventListener('click', function() { deleteProject(jobId); });
-      }
-      const editBtn = document.getElementById('editNameBtn');
-      if (editBtn) {
-        editBtn.addEventListener('click', function() {
-          const nameEl = document.getElementById('projectNameText');
-          const currentName = job.customer;
-          const currentType = job.type;
-          nameEl.innerHTML = '<input type="text" id="editCustomerInput" class="inline-edit" value="' + currentName.replace(/"/g, '&quot;') + '" placeholder="Customer name" /> — <input type="text" id="editTypeInput" class="inline-edit" value="' + currentType.replace(/"/g, '&quot;') + '" placeholder="Project type" /><button class="inline-save-btn" id="saveNameBtn">Save</button><button class="inline-cancel-btn" id="cancelNameBtn">Cancel</button>';
-          editBtn.style.display = 'none';
-          document.getElementById('editCustomerInput').focus();
+    if (!existingRange) {
+      $statsBar.innerHTML =
+        '<div class="project-title"><span class="status-dot ' + job.status + '"></span><span class="project-name-text" id="projectNameText">' + projectDisplayName + '</span><button class="edit-name-btn" id="editNameBtn" title="Edit project name">✏️</button><button class="delete-project-btn" id="deleteProjectBtn" title="Delete project">🗑️</button></div>' +
+        '<div class="stat"><strong>' + done + '</strong> Complete</div>' +
+        '<div class="stat"><strong>' + inProg + '</strong> In Progress</div>' +
+        '<div class="stat"><strong>' + sched + '</strong> Scheduled</div>' +
+        '<div class="stat"><strong>' + totalDuration + '</strong> Days Total</div>';
 
-          document.getElementById('saveNameBtn').addEventListener('click', function() {
-            const newCustomer = document.getElementById('editCustomerInput').value.trim();
-            const newType = document.getElementById('editTypeInput').value.trim();
-            if (newCustomer) job.customer = newCustomer;
-            if (newType) job.type = newType;
-            saveState();
-            renderProject(jobId);
-          });
+      // Delete project + Editable project name
+      setTimeout(function() {
+        const delProjBtn = document.getElementById('deleteProjectBtn');
+        if (delProjBtn) {
+          delProjBtn.addEventListener('click', function() { deleteProject(jobId); });
+        }
+        const editBtn = document.getElementById('editNameBtn');
+        if (editBtn) {
+          editBtn.addEventListener('click', function() {
+            const nameEl = document.getElementById('projectNameText');
+            const currentName = job.customer;
+            const currentType = job.type;
+            nameEl.innerHTML = '<input type="text" id="editCustomerInput" class="inline-edit" value="' + currentName.replace(/"/g, '&quot;') + '" placeholder="Customer name" /> — <input type="text" id="editTypeInput" class="inline-edit" value="' + currentType.replace(/"/g, '&quot;') + '" placeholder="Project type" /><button class="inline-save-btn" id="saveNameBtn">Save</button><button class="inline-cancel-btn" id="cancelNameBtn">Cancel</button>';
+            editBtn.style.display = 'none';
+            document.getElementById('editCustomerInput').focus();
 
-          document.getElementById('cancelNameBtn').addEventListener('click', function() {
-            renderProject(jobId);
-          });
+            document.getElementById('saveNameBtn').addEventListener('click', function() {
+              const newCustomer = document.getElementById('editCustomerInput').value.trim();
+              const newType = document.getElementById('editTypeInput').value.trim();
+              if (newCustomer) job.customer = newCustomer;
+              if (newType) job.type = newType;
+              saveState();
+              renderProject(jobId);
+            });
 
-          // Save on Enter
-          ['editCustomerInput', 'editTypeInput'].forEach(function(id) {
-            document.getElementById(id).addEventListener('keydown', function(e) {
-              if (e.key === 'Enter') document.getElementById('saveNameBtn').click();
-              if (e.key === 'Escape') document.getElementById('cancelNameBtn').click();
+            document.getElementById('cancelNameBtn').addEventListener('click', function() {
+              renderProject(jobId);
+            });
+
+            ['editCustomerInput', 'editTypeInput'].forEach(function(id) {
+              document.getElementById(id).addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') document.getElementById('saveNameBtn').click();
+                if (e.key === 'Escape') document.getElementById('cancelNameBtn').click();
+              });
             });
           });
-        });
-      }
-    }, 0);
+        }
+      }, 0);
+    }
 
     updateToggle();
 
-    // Range
-    const start = parseDate(job.startDate);
-    const end = parseDate(job.endDate);
-    const range = computeRange(start, end, 5);
+    // Range — start wide for infinite scroll
+    var range;
+    if (existingRange) {
+      range = existingRange;
+    } else {
+      detachInfiniteScroll();
+      var start = parseDate(job.startDate);
+      var end = parseDate(job.endDate);
+      var projectDays = daysBetween(start, end);
+      // Pad generously: 30 days before, 60 days after (or more for long projects)
+      var padBefore = Math.max(30, projectDays);
+      var padAfter = Math.max(60, projectDays);
+      var rangeStart = getMonday(addDays(start, -padBefore));
+      var rangeEnd = addDays(end, padAfter);
+      var totalDays = daysBetween(rangeStart, rangeEnd);
+      range = { rangeStart: rangeStart, rangeEnd: rangeEnd, totalDays: totalDays };
+    }
+    infiniteState = range;
+
     const dayWidth = 48;
 
     const { html: headerHtml, trackWidth } = buildHeaderDaily(range, dayWidth);
-
-    // Update header label
-    const hdrHtml = headerHtml;
 
     let bodyHtml = '<div class="timeline-body" style="position:relative">';
 
@@ -476,11 +564,9 @@
       bodyHtml += '<div class="grid-line" style="left:' + x + 'px"></div>';
     }
 
-    // Today
-    if (today >= range.rangeStart && today <= addDays(range.rangeStart, range.totalDays)) {
-      const tx = daysBetween(range.rangeStart, today) * dayWidth + getSidebarW();
-      bodyHtml += '<div class="today-line" style="left:' + tx + 'px"></div>';
-    }
+    // Today line (always)
+    const tx = daysBetween(range.rangeStart, today) * dayWidth + getSidebarW();
+    bodyHtml += '<div class="today-line" style="left:' + tx + 'px"></div>';
 
     for (let i = 0; i < job.tasks.length; i++) {
       const task = job.tasks[i];
@@ -515,12 +601,13 @@
 
     bodyHtml += '</div>';
 
-    // Materials section is rendered outside the scrollable timeline (see below)
-
-    $timeline.innerHTML = hdrHtml + bodyHtml;
+    $timeline.innerHTML = headerHtml + bodyHtml;
     $timeline.style.width = (trackWidth + getSidebarW()) + 'px';
-    $timeline.classList.add('view-enter');
-    setTimeout(() => $timeline.classList.remove('view-enter'), 300);
+
+    if (!existingRange) {
+      $timeline.classList.add('view-enter');
+      setTimeout(() => $timeline.classList.remove('view-enter'), 300);
+    }
 
     // Bind (skip if drag just ended)
     $timeline.querySelectorAll('.bar[data-task], .row-label[data-task]').forEach(el => {
@@ -557,7 +644,15 @@
       addTaskBtn.addEventListener('click', function() { addTask(jobId); });
     }
 
-    scrollToToday(range, dayWidth, getSidebarW());
+    // Attach infinite scroll
+    if (!existingRange) {
+      attachInfiniteScroll(function(r) { renderProject(jobId, r, false); }, dayWidth);
+    }
+
+    // Scroll to today (or project start) on first render
+    if (doScroll !== false && !existingRange) {
+      scrollToToday(range, dayWidth, getSidebarW());
+    }
   }
 
   // ── Pick next unused phase color ──
