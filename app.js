@@ -46,6 +46,142 @@
     img.src = dataUrl;
   }
 
+  // ── Templates ──
+  let templates = [];
+  const savedTemplates = localStorage.getItem('bf_templates');
+  if (savedTemplates) {
+    try { templates = JSON.parse(savedTemplates); } catch(e) { /* ignore */ }
+  }
+
+  function saveTemplates() {
+    try {
+      localStorage.setItem('bf_templates', JSON.stringify(templates));
+    } catch(e) {
+      console.warn('localStorage save failed:', e);
+    }
+  }
+
+  function saveAsTemplate(jobId) {
+    var job = jobs.find(function(j) { return j.id === jobId; });
+    if (!job) return;
+    var name = prompt('Template name:', job.type);
+    if (!name || !name.trim()) return;
+
+    // Convert tasks to relative day offsets from job start
+    var jobStart = parseDate(job.startDate);
+    var taskTemplates = job.tasks.map(function(t) {
+      return {
+        name: t.name,
+        owner: t.owner,
+        color: t.color,
+        startDay: daysBetween(jobStart, parseDate(t.start)),
+        endDay: daysBetween(jobStart, parseDate(t.end))
+      };
+    });
+
+    templates.push({
+      id: Date.now(),
+      name: name.trim(),
+      type: job.type,
+      tasks: taskTemplates
+    });
+    saveTemplates();
+    alert('Template "' + name.trim() + '" saved.');
+  }
+
+  function deleteTemplate(templateId) {
+    templates = templates.filter(function(t) { return t.id !== templateId; });
+    saveTemplates();
+  }
+
+  function createFromTemplate(template) {
+    var name = prompt('Customer Name:');
+    if (!name || !name.trim()) return;
+
+    var startDate = getMonday(addDays(today, 7));
+    var newId = Math.max(0, ...jobs.map(function(j) { return j.id; })) + 1;
+
+    var tasks = template.tasks.map(function(t) {
+      return {
+        name: t.name,
+        owner: t.owner || '',
+        start: dateToStringHelper(addDays(startDate, t.startDay)),
+        end: dateToStringHelper(addDays(startDate, t.endDay)),
+        status: 'scheduled',
+        color: t.color,
+        notes: '',
+        notesList: []
+      };
+    });
+
+    var lastDay = Math.max.apply(null, template.tasks.map(function(t) { return t.endDay; }));
+
+    jobs.push({
+      id: newId,
+      customer: name.trim(),
+      type: template.type || template.name,
+      status: 'scheduled',
+      startDate: dateToStringHelper(startDate),
+      endDate: dateToStringHelper(addDays(startDate, lastDay)),
+      tasks: tasks
+    });
+    saveState();
+    renderPortfolio();
+  }
+
+  function showTemplateDialog() {
+    if (templates.length === 0) {
+      alert('No templates saved yet. Open a project and use "Save as Template" first.');
+      return;
+    }
+
+    var overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    var listHtml = '';
+    for (var i = 0; i < templates.length; i++) {
+      var t = templates[i];
+      listHtml += '<div class="template-item" data-idx="' + i + '">' +
+        '<div class="template-info"><strong>' + t.name + '</strong><span class="template-tasks">' + t.tasks.length + ' tasks</span></div>' +
+        '<button class="template-delete" data-tid="' + t.id + '" title="Delete template">×</button>' +
+        '</div>';
+    }
+    overlay.innerHTML =
+      '<div class="confirm-box" style="min-width:320px;max-width:400px">' +
+        '<div class="confirm-msg">Create from Template</div>' +
+        '<div class="template-list">' + listHtml + '</div>' +
+        '<div class="confirm-btns" style="margin-top:16px">' +
+          '<button class="confirm-btn confirm-cancel" id="tmplCancel">Cancel</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    overlay.querySelectorAll('.template-item').forEach(function(el) {
+      el.addEventListener('click', function(e) {
+        if (e.target.classList.contains('template-delete')) return;
+        var idx = parseInt(el.dataset.idx);
+        document.body.removeChild(overlay);
+        createFromTemplate(templates[idx]);
+      });
+    });
+
+    overlay.querySelectorAll('.template-delete').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var tid = parseInt(btn.dataset.tid);
+        deleteTemplate(tid);
+        document.body.removeChild(overlay);
+        showTemplateDialog();
+      });
+    });
+
+    overlay.querySelector('#tmplCancel').addEventListener('click', function() {
+      document.body.removeChild(overlay);
+    });
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) document.body.removeChild(overlay);
+    });
+  }
+
   function getSidebarW() {
     return window.innerWidth <= 768 ? 120 : 160;
   }
@@ -458,7 +594,9 @@
     bodyHtml += '<span class="add-icon">+</span>';
     bodyHtml += '<span class="job-name">Add Project</span>';
     bodyHtml += '</div>';
-    bodyHtml += '<div class="row-track"></div></div>';
+    bodyHtml += '<div class="row-track" style="display:flex;align-items:center;padding-left:12px;">';
+    bodyHtml += '<span class="add-from-template-btn" id="fromTemplateBtn">or from template</span>';
+    bodyHtml += '</div></div>';
 
     bodyHtml += '</div>';
 
@@ -472,6 +610,7 @@
 
     // Add Project click
     document.getElementById('addProjectBtn').addEventListener('click', addProject);
+    document.getElementById('fromTemplateBtn').addEventListener('click', showTemplateDialog);
 
     // Bind events (skip if drag just ended)
     $timeline.querySelectorAll('.bar[data-job], .row-label[data-job]').forEach(el => {
@@ -528,7 +667,7 @@
 
     if (!existingRange) {
       $statsBar.innerHTML =
-        '<div class="project-title"><span class="status-dot ' + job.status + '"></span><span class="project-name-text" id="projectNameText">' + projectDisplayName + '</span><button class="edit-name-btn" id="editNameBtn" title="Edit project name">✏️</button><button class="delete-project-btn" id="deleteProjectBtn" title="Delete project">🗑️</button></div>' +
+        '<div class="project-title"><span class="status-dot ' + job.status + '"></span><span class="project-name-text" id="projectNameText">' + projectDisplayName + '</span><button class="edit-name-btn" id="editNameBtn" title="Edit project name">✏️</button><button class="edit-name-btn" id="saveTemplateBtn" title="Save as Template">📋</button><button class="delete-project-btn" id="deleteProjectBtn" title="Delete project">🗑️</button></div>' +
         '<div class="stat"><strong>' + done + '</strong> Complete</div>' +
         '<div class="stat"><strong>' + inProg + '</strong> In Progress</div>' +
         '<div class="stat"><strong>' + sched + '</strong> Scheduled</div>' +
@@ -539,6 +678,10 @@
         const delProjBtn = document.getElementById('deleteProjectBtn');
         if (delProjBtn) {
           delProjBtn.addEventListener('click', function() { deleteProject(jobId); });
+        }
+        const tmplBtn = document.getElementById('saveTemplateBtn');
+        if (tmplBtn) {
+          tmplBtn.addEventListener('click', function() { saveAsTemplate(jobId); });
         }
         const editBtn = document.getElementById('editNameBtn');
         if (editBtn) {
@@ -1562,6 +1705,108 @@
       }
     });
   }
+
+  // ── Drag-to-create tasks on empty timeline area (Level 2 only) ──
+  let createDrag = null;
+
+  document.addEventListener('mousedown', function(e) {
+    if (currentLevel !== 2 || !currentJobId) return;
+    if (dragState) return; // existing bar drag in progress
+    // Only trigger on row-track (empty area), not on bars or sidebar
+    var track = e.target.closest('.row-track');
+    if (!track) return;
+    if (e.target.closest('.bar')) return;
+
+    e.preventDefault();
+    var dayWidth = 48;
+    var sidebarW = getSidebarW();
+    var containerRect = $timelineContainer.getBoundingClientRect();
+    var scrollLeft = $timelineContainer.scrollLeft;
+
+    // x relative to timeline content
+    var xInTimeline = e.clientX - containerRect.left + scrollLeft - sidebarW;
+    var startDay = Math.floor(xInTimeline / dayWidth);
+
+    // Create preview bar
+    var preview = document.createElement('div');
+    preview.className = 'bar create-preview';
+    preview.style.position = 'absolute';
+    preview.style.top = '8px';
+    preview.style.height = '32px';
+    preview.style.left = (startDay * dayWidth) + 'px';
+    preview.style.width = dayWidth + 'px';
+    preview.style.background = 'rgba(97,175,239,0.4)';
+    preview.style.border = '2px dashed #61afef';
+    preview.style.borderRadius = '6px';
+    preview.style.zIndex = '20';
+    preview.style.pointerEvents = 'none';
+    track.appendChild(preview);
+
+    createDrag = {
+      track: track,
+      preview: preview,
+      startDay: startDay,
+      currentDay: startDay,
+      dayWidth: dayWidth,
+      sidebarW: sidebarW,
+      containerRect: containerRect
+    };
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    if (!createDrag) return;
+    e.preventDefault();
+    var scrollLeft = $timelineContainer.scrollLeft;
+    var xInTimeline = e.clientX - createDrag.containerRect.left + scrollLeft - createDrag.sidebarW;
+    var endDay = Math.floor(xInTimeline / createDrag.dayWidth);
+
+    var minD = Math.min(createDrag.startDay, endDay);
+    var maxD = Math.max(createDrag.startDay, endDay);
+    createDrag.preview.style.left = (minD * createDrag.dayWidth) + 'px';
+    createDrag.preview.style.width = ((maxD - minD + 1) * createDrag.dayWidth) + 'px';
+    createDrag.currentDay = endDay;
+  });
+
+  document.addEventListener('mouseup', function(e) {
+    if (!createDrag) return;
+    var cd = createDrag;
+    createDrag = null;
+
+    // Remove preview
+    if (cd.preview.parentNode) cd.preview.parentNode.removeChild(cd.preview);
+
+    if (!infiniteState) return;
+    var minD = Math.min(cd.startDay, cd.currentDay);
+    var maxD = Math.max(cd.startDay, cd.currentDay);
+
+    // Convert day offsets to actual dates
+    var taskStart = addDays(infiniteState.rangeStart, minD);
+    var taskEnd = addDays(infiniteState.rangeStart, maxD);
+
+    var job = jobs.find(function(j) { return j.id === currentJobId; });
+    if (!job) return;
+
+    var taskName = prompt('Task name:', 'New Task');
+    if (!taskName || !taskName.trim()) return;
+
+    var usedColors = job.tasks.map(function(t) { return t.color; });
+    var color = nextColor(usedColors);
+
+    job.tasks.push({
+      name: taskName.trim(),
+      owner: '',
+      start: dateToString(taskStart),
+      end: dateToString(taskEnd),
+      status: 'scheduled',
+      color: color,
+      notes: '',
+      notesList: []
+    });
+
+    saveScrollPos();
+    autoStaggerTasks(job);
+    renderProject(currentJobId);
+  });
 
   // ── Public API ──
   window.app = {
