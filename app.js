@@ -336,10 +336,18 @@
     html += '<div class="timeline-sidebar-header">Projects</div>';
     html += '<div class="timeline-dates" style="width:' + trackWidth + 'px">';
 
-    // Layer 1: Month row
-    html += '<div class="month-row">';
+    // Layer 1: Month row (with absolute-positioned dividers for alignment)
+    html += '<div class="month-row" style="position:relative">';
     for (const m of months) {
       html += '<div class="month-label" style="width:' + (m.days * dayWidth) + 'px">' + m.label + '</div>';
+    }
+    // Month divider lines inside header, matching body grid-month positions
+    var cumDays = 0;
+    for (var mi = 0; mi < months.length; mi++) {
+      if (mi > 0) {
+        html += '<div class="header-month-divider" style="left:' + (cumDays * dayWidth) + 'px"></div>';
+      }
+      cumDays += months[mi].days;
     }
     html += '</div>';
 
@@ -390,10 +398,17 @@
     html += '<div class="timeline-sidebar-header">Tasks</div>';
     html += '<div class="timeline-dates" style="width:' + trackWidth + 'px">';
 
-    // Month row
-    html += '<div class="month-row">';
+    // Month row (with aligned dividers)
+    html += '<div class="month-row" style="position:relative">';
     for (const m of months) {
       html += '<div class="month-label" style="width:' + (m.days * dayWidth) + 'px">' + m.label + '</div>';
+    }
+    var cumDays2 = 0;
+    for (var mi2 = 0; mi2 < months.length; mi2++) {
+      if (mi2 > 0) {
+        html += '<div class="header-month-divider" style="left:' + (cumDays2 * dayWidth) + 'px"></div>';
+      }
+      cumDays2 += months[mi2].days;
     }
     html += '</div>';
 

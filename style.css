@@ -166,6 +166,16 @@ html, body {
   width: 2px;
 }
 
+.header-month-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--text-dim);
+  z-index: 2;
+  pointer-events: none;
+}
+
 /* ── Main Area — fixed height so bottom bar doesn't compress it ── */
 #mainArea {
   height: calc(100vh - 100px);
@@ -230,10 +240,10 @@ html, body {
   font-size: 12px;
   font-weight: 600;
   color: var(--text);
-  border-left: 2px solid var(--text-dim);
   padding: 4px 0;
   text-align: center;
-  border-right: 1px solid var(--border-light);
+  border-right: none;
+  box-sizing: border-box;
 }
 
 .week-row {
@@ -259,6 +269,7 @@ html, body {
   padding: 3px 0;
   text-align: center;
   border-right: 1px solid var(--border-light);
+  box-sizing: border-box;
 }
 
 .day-label.weekend {
@@ -288,7 +299,6 @@ html, body {
   white-space: nowrap;
   padding: 2px 3px;
   line-height: 16px;
-  border-left: 1px solid var(--text-dim);
 }
 
 /* ── Project view: Day tick row ── */
