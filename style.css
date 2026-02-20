@@ -32,8 +32,7 @@ html, body {
 #app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
 }
 
 /* ── Header ── */
@@ -138,6 +137,13 @@ html, body {
 
 .stat { white-space: nowrap; }
 .stat strong { color: var(--text); font-weight: 600; }
+
+/* ── Main Area — fixed height so bottom bar doesn't compress it ── */
+#mainArea {
+  height: calc(100vh - 100px);
+  min-height: 400px;
+  flex-shrink: 0;
+}
 
 /* ── Timeline Container ── */
 .timeline-container {
@@ -845,8 +851,6 @@ html, body {
   border-top: 1px solid var(--border);
   flex-shrink: 0;
   background: var(--surface);
-  max-height: 300px;
-  overflow-y: auto;
 }
 
 .bottom-panel {
