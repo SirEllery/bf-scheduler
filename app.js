@@ -570,7 +570,7 @@
     currentTaskIndex = null;
     selectedJobId = null;
     $detailPanel.classList.remove('visible');
-    renderBottomBarPrompt();
+    $bottomBar.style.display = 'none';
 
     // Stats
     const active = jobs.filter(j => j.status === 'active').length;
@@ -675,14 +675,9 @@
     document.getElementById('addProjectBtn').addEventListener('click', addProject);
     document.getElementById('fromTemplateBtn').addEventListener('click', showTemplateDialog);
 
-    // Bind events: single-click selects, double-click navigates
+    // Bind events: click navigates to project
     $timeline.querySelectorAll('.bar[data-job], .row-label[data-job]').forEach(el => {
       el.addEventListener('click', () => {
-        if (Date.now() - lastDragEnd < 300) return;
-        const jid = parseInt(el.dataset.job);
-        selectJob(jid);
-      });
-      el.addEventListener('dblclick', () => {
         if (Date.now() - lastDragEnd < 300) return;
         const jid = parseInt(el.dataset.job);
         renderProject(jid);
@@ -1412,59 +1407,57 @@
   }
 
   // ── Render Level 0: Daily (all tasks from all projects) ──
-  function renderDaily(existingRange, doScroll) {
+  function renderDaily(jobId, existingRange, doScroll) {
     currentLevel = 0;
-    currentJobId = null;
     currentTaskIndex = null;
-    selectedJobId = null;
     $detailPanel.classList.remove('visible');
-    renderBottomBarPrompt();
+
+    // If no jobId provided, pick one
+    if (!jobId && currentJobId) {
+      jobId = currentJobId;
+    } else if (!jobId) {
+      var active = jobs.find(function(j) { return j.status === 'active'; }) || jobs[0];
+      if (active) jobId = active.id;
+    }
+    currentJobId = jobId;
+
+    var job = jobs.find(function(j) { return j.id === jobId; });
+    if (!job) return renderPortfolio();
 
     // Stats
-    var totalTasks = 0;
-    var activeTasks = 0;
-    var completeTasks = 0;
-    var scheduledTasks = 0;
-    jobs.forEach(function(j) {
-      j.tasks.forEach(function(t) {
-        totalTasks++;
-        if (t.status === 'active') activeTasks++;
-        else if (t.status === 'complete') completeTasks++;
-        else scheduledTasks++;
-      });
-    });
+    var done = job.tasks.filter(function(t) { return t.status === 'complete'; }).length;
+    var inProg = job.tasks.filter(function(t) { return t.status === 'active'; }).length;
+    var sched = job.tasks.filter(function(t) { return t.status === 'scheduled'; }).length;
+    var projectDisplayName = job.customer + ' — ' + job.type;
+
     $statsBar.innerHTML =
-      '<div class="stat"><strong>' + activeTasks + '</strong> Active</div>' +
-      '<div class="stat"><strong>' + scheduledTasks + '</strong> Scheduled</div>' +
-      '<div class="stat"><strong>' + completeTasks + '</strong> Complete</div>' +
-      '<div class="stat"><strong>' + totalTasks + '</strong> Total Tasks</div>';
+      '<div class="project-title"><span class="status-dot ' + job.status + '"></span><span class="project-name-text">' + projectDisplayName + '</span></div>' +
+      '<div class="stat"><strong>' + done + '</strong> Complete</div>' +
+      '<div class="stat"><strong>' + inProg + '</strong> In Progress</div>' +
+      '<div class="stat"><strong>' + sched + '</strong> Scheduled</div>' +
+      '<div class="stat"><strong>' + job.tasks.length + '</strong> Total Tasks</div>';
 
     updateToggle();
 
+    // Range: tight — 7 days before project start, 7 days after project end
     var range;
     if (existingRange) {
       range = existingRange;
     } else {
       detachInfiniteScroll();
-      var rangeStart = getMonday(addDays(today, -14));
-      var totalDays = 30;
-      range = { rangeStart: rangeStart, rangeEnd: addDays(rangeStart, totalDays), totalDays: totalDays };
+      var start = parseDate(job.startDate);
+      var end = parseDate(job.endDate);
+      var rangeStart = getMonday(addDays(start, -7));
+      var rangeEnd = addDays(end, 7);
+      var totalDays = daysBetween(rangeStart, rangeEnd);
+      range = { rangeStart: rangeStart, rangeEnd: rangeEnd, totalDays: totalDays };
     }
     infiniteState = range;
 
     var dayWidth = 48;
     var headerResult = buildHeaderDaily(range, dayWidth);
-    var headerHtml = headerResult.html; // sidebar header already says "Tasks"
+    var headerHtml = headerResult.html;
     var trackWidth = headerResult.trackWidth;
-
-    // Collect all tasks from all projects, sorted by start date
-    var allTasks = [];
-    jobs.forEach(function(job) {
-      job.tasks.forEach(function(task, ti) {
-        allTasks.push({ task: task, taskIndex: ti, job: job });
-      });
-    });
-    allTasks.sort(function(a, b) { return parseDate(a.task.start) - parseDate(b.task.start); });
 
     var bodyHtml = '<div class="timeline-body" style="position:relative">';
 
@@ -1488,10 +1481,8 @@
     var tx = daysBetween(range.rangeStart, today) * dayWidth + getSidebarW();
     bodyHtml += '<div class="today-line" style="left:' + tx + 'px"></div>';
 
-    for (var i = 0; i < allTasks.length; i++) {
-      var item = allTasks[i];
-      var task = item.task;
-      var job = item.job;
+    for (var i = 0; i < job.tasks.length; i++) {
+      var task = job.tasks[i];
       var color = PHASE_COLORS[task.color] || PHASE_COLORS.other;
       var tStart = parseDate(task.start);
       var tEnd = parseDate(task.end);
@@ -1500,19 +1491,21 @@
       var barClass = task.status === 'complete' ? ' completed-bar' : '';
 
       bodyHtml += '<div class="timeline-row">';
-      bodyHtml += '<div class="row-label" data-daily-job="' + job.id + '">';
+      bodyHtml += '<div class="row-label" data-task="' + i + '">';
       bodyHtml += '<span class="status-dot ' + task.status + '"></span>';
-      bodyHtml += '<span class="job-name stacked"><span class="line1">' + task.name + '</span><span class="line2">' + shortName(job.customer) + '</span></span>';
+      bodyHtml += '<span class="job-name stacked"><span class="line1">' + task.name + '</span><span class="line2">' + (task.owner || '') + '</span></span>';
       bodyHtml += '</div>';
       bodyHtml += '<div class="row-track">';
-      bodyHtml += '<div class="bar' + barClass + '" data-daily-job="' + job.id + '" data-daily-task="' + item.taskIndex + '" data-type="daily-task" style="left:' + (leftDays * dayWidth) + 'px;width:' + Math.max(widthDays * dayWidth - 2, 24) + 'px;background:' + color + '">';
+      bodyHtml += '<div class="bar' + barClass + '" data-task="' + i + '" data-type="task" data-job="' + jobId + '" style="left:' + (leftDays * dayWidth) + 'px;width:' + Math.max(widthDays * dayWidth - 2, 24) + 'px;background:' + color + '">';
       bodyHtml += weekendOverlaysHtml(tStart, tEnd, dayWidth);
+      bodyHtml += '<div class="drag-handle drag-handle-left" data-side="left"></div>';
       bodyHtml += '<span class="bar-label">' + task.name + '</span>';
+      bodyHtml += '<div class="drag-handle drag-handle-right" data-side="right"></div>';
       bodyHtml += '</div>';
       bodyHtml += '</div></div>';
     }
 
-    if (allTasks.length === 0) {
+    if (job.tasks.length === 0) {
       bodyHtml += '<div class="timeline-row"><div class="row-label"><span class="job-name">No tasks yet</span></div><div class="row-track"></div></div>';
     }
 
@@ -1526,37 +1519,27 @@
       setTimeout(function() { $timeline.classList.remove('view-enter'); }, 300);
     }
 
-    // Bind: single-click selects parent project, double-click navigates to Projects view
-    $timeline.querySelectorAll('.bar[data-daily-job], .row-label[data-daily-job]').forEach(function(el) {
+    // Materials panel
+    renderMaterials(job);
+
+    // Bind: click task to open task detail
+    $timeline.querySelectorAll('.bar[data-task], .row-label[data-task]').forEach(function(el) {
       el.addEventListener('click', function() {
         if (Date.now() - lastDragEnd < 300) return;
-        var jid = parseInt(el.dataset.dailyJob);
-        selectJob(jid);
-        // Highlight all bars for this project
-        $timeline.querySelectorAll('.bar[data-daily-job]').forEach(function(b) {
-          b.classList.toggle('selected-bar', parseInt(b.dataset.dailyJob) === jid);
-        });
-      });
-      el.addEventListener('dblclick', function() {
-        if (Date.now() - lastDragEnd < 300) return;
-        var jid = parseInt(el.dataset.dailyJob);
-        renderProject(jid);
+        var ti = parseInt(el.dataset.task);
+        renderTaskDetail(jobId, ti);
       });
     });
 
     // Tooltips on task bars
-    $timeline.querySelectorAll('.bar[data-daily-job]').forEach(function(el) {
-      var jid = parseInt(el.dataset.dailyJob);
-      var ti = parseInt(el.dataset.dailyTask);
-      var job = jobs.find(function(j) { return j.id === jid; });
-      if (!job) return;
+    $timeline.querySelectorAll('.bar[data-task]').forEach(function(el) {
+      var ti = parseInt(el.dataset.task);
       var task = job.tasks[ti];
       if (!task) return;
       el.addEventListener('mouseenter', function(e) {
         var dur = daysBetween(parseDate(task.start), parseDate(task.end)) + 1;
         showTooltip(e,
           '<div class="tooltip-title">' + task.name + '</div>' +
-          '<div class="tooltip-row"><strong>Project:</strong> ' + job.customer + '</div>' +
           '<div class="tooltip-row"><strong>Owner:</strong> ' + (task.owner || '—') + '</div>' +
           '<div class="tooltip-row"><strong>Start:</strong> ' + formatDate(parseDate(task.start)) + '</div>' +
           '<div class="tooltip-row"><strong>End:</strong> ' + formatDate(parseDate(task.end)) + '</div>' +
@@ -1568,7 +1551,7 @@
     });
 
     if (!existingRange) {
-      attachInfiniteScroll(function(r) { renderDaily(r, false); }, dayWidth);
+      attachInfiniteScroll(function(r) { renderDaily(jobId, r, false); }, dayWidth);
     }
 
     if (doScroll !== false && !existingRange) {
@@ -1589,7 +1572,7 @@
   }
 
   function showDaily() {
-    renderDaily();
+    renderDaily(currentJobId);
   }
 
   function showProjects() {
