@@ -598,45 +598,14 @@ html, body {
   color: var(--text) !important;
 }
 
-/* ── Today Line ── */
-.today-line {
+/* ── Today Column Highlight ── */
+.today-col {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 3px;
-  background: var(--today);
-  z-index: 15;
+  background: rgba(255,255,255,0.06);
+  z-index: 1;
   pointer-events: none;
-  box-shadow: 0 0 8px rgba(224, 108, 117, 0.5), 0 0 16px rgba(224, 108, 117, 0.2);
-}
-
-.today-line::before {
-  content: 'TODAY';
-  position: absolute;
-  top: -22px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  color: #fff;
-  background: var(--today);
-  padding: 2px 6px;
-  border-radius: 3px;
-  white-space: nowrap;
-}
-
-.today-line::after {
-  content: '';
-  position: absolute;
-  top: -4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-top: 5px solid var(--today);
 }
 
 /* ── Week Grid Lines ── */
@@ -950,8 +919,6 @@ html, body {
   flex-direction: column;
   gap: 6px;
   margin-bottom: 12px;
-  max-height: 160px;
-  overflow-y: auto;
 }
 
 .note-item {
@@ -1058,8 +1025,6 @@ html, body {
   flex-direction: column;
   gap: 6px;
   margin-bottom: 10px;
-  max-height: 200px;
-  overflow-y: auto;
 }
 
 .photos-grid {
@@ -1546,6 +1511,116 @@ html, body {
 @keyframes createPulse {
   0%, 100% { opacity: 0.6; }
   50% { opacity: 1; }
+}
+
+/* ── Undo Button ── */
+.undo-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+  line-height: 1;
+  padding: 0;
+  font-family: inherit;
+}
+
+.undo-btn:hover {
+  color: var(--text);
+  border-color: var(--text-secondary);
+}
+
+.undo-btn.disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.undo-btn.disabled:hover {
+  color: var(--text-secondary);
+  border-color: var(--border);
+}
+
+/* ── Row-label delete X ── */
+.row-label-delete {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  padding: 0;
+  line-height: 1;
+  z-index: 11;
+}
+
+.row-label {
+  position: relative;
+}
+
+.row-label:hover .row-label-delete {
+  opacity: 0.6;
+}
+
+.row-label-delete:hover {
+  opacity: 1 !important;
+  color: var(--today);
+}
+
+/* ── Note edit icon ── */
+.note-edit {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.note-item:hover .note-edit {
+  opacity: 1;
+}
+
+.note-edit:hover {
+  color: #61afef;
+}
+
+.note-edit-area {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid #61afef;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 6px 8px;
+  resize: vertical;
+  min-height: 36px;
+  line-height: 1.4;
+}
+
+.note-edit-area:focus {
+  outline: none;
 }
 
 /* ── Photo Lightbox ── */

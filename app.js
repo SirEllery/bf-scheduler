@@ -15,6 +15,35 @@
     try { jobs = JSON.parse(saved); } catch(e) { /* use defaults */ }
   }
 
+  // ── Undo Stack ──
+  var undoStack = [];
+  var MAX_UNDO = 5;
+
+  function pushUndo() {
+    undoStack.push(JSON.parse(JSON.stringify(jobs)));
+    if (undoStack.length > MAX_UNDO) undoStack.shift();
+    updateUndoBtn();
+  }
+
+  function undo() {
+    if (undoStack.length === 0) return;
+    jobs = undoStack.pop();
+    saveState();
+    updateUndoBtn();
+    // Re-render current view
+    if (currentLevel === 0) renderDaily(currentJobId);
+    else if (currentLevel === 2) renderProject();
+    else renderPortfolio();
+  }
+
+  function updateUndoBtn() {
+    var btn = document.getElementById('undoBtn');
+    if (btn) {
+      if (undoStack.length === 0) btn.classList.add('disabled');
+      else btn.classList.remove('disabled');
+    }
+  }
+
   function saveState() {
     try {
       localStorage.setItem('bf_jobs', JSON.stringify(jobs));
@@ -97,6 +126,7 @@
     var name = prompt('Customer Name:');
     if (!name || !name.trim()) return;
 
+    pushUndo();
     var startDate = getMonday(addDays(today, 7));
     var newId = Math.max(0, ...jobs.map(function(j) { return j.id; })) + 1;
 
@@ -304,8 +334,11 @@
       html += '<div class="' + gridCls + '" style="left:' + x + 'px"></div>';
     }
     buildMonthBoundaries(range, dayWidth);
-    var tx = daysBetween(range.rangeStart, today) * dayWidth + sidebarW;
-    html += '<div class="today-line" style="left:' + tx + 'px"></div>';
+    var todayOffset = daysBetween(range.rangeStart, today);
+    if (todayOffset >= 0 && todayOffset < range.totalDays) {
+      var tx = todayOffset * dayWidth + sidebarW;
+      html += '<div class="today-col" style="left:' + tx + 'px;width:' + dayWidth + 'px"></div>';
+    }
     return html;
   }
 
@@ -627,6 +660,7 @@
       bodyHtml += '<div class="row-label" data-job="' + job.id + '">';
       bodyHtml += '<span class="status-dot ' + job.status + '"></span>';
       bodyHtml += '<span class="job-name stacked"><span class="line1">' + shortName(job.customer) + '</span><span class="line2">' + job.type + '</span></span>';
+      bodyHtml += '<button class="row-label-delete" data-deletejob="' + job.id + '" title="Delete project">×</button>';
       bodyHtml += '</div>';
       bodyHtml += '<div class="row-track">';
       bodyHtml += '<div class="bar' + barClass + '" data-job="' + job.id + '" data-type="job" style="left:' + (leftDays * dayWidth) + 'px;width:' + (widthDays * dayWidth - 2) + 'px;background:' + jobColor + '">';
@@ -638,16 +672,6 @@
       bodyHtml += '</div></div>';
     }
 
-    // Add Project row
-    bodyHtml += '<div class="timeline-row add-project-row">';
-    bodyHtml += '<div class="row-label add-project-btn" id="addProjectBtn">';
-    bodyHtml += '<span class="add-icon">+</span>';
-    bodyHtml += '<span class="job-name">Add Project</span>';
-    bodyHtml += '</div>';
-    bodyHtml += '<div class="row-track" style="display:flex;align-items:center;padding-left:12px;">';
-    bodyHtml += '<span class="add-from-template-btn" id="fromTemplateBtn">or from template</span>';
-    bodyHtml += '</div></div>';
-
     bodyHtml += '</div>';
 
     $timeline.innerHTML = headerHtml + bodyHtml;
@@ -658,9 +682,14 @@
       setTimeout(function() { $timeline.classList.remove('view-enter'); }, 300);
     }
 
-    // Add Project click
-    document.getElementById('addProjectBtn').addEventListener('click', addProject);
-    document.getElementById('fromTemplateBtn').addEventListener('click', showTemplateDialog);
+    // Delete project from row label
+    $timeline.querySelectorAll('.row-label-delete[data-deletejob]').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var jid = parseInt(btn.dataset.deletejob);
+        deleteProject(jid);
+      });
+    });
 
     // Bind events: click navigates to daily view for that project
     $timeline.querySelectorAll('.bar[data-job], .row-label[data-job]').forEach(function(el) {
@@ -759,6 +788,7 @@
       bodyHtml += '<div class="row-label" data-job="' + job.id + '">';
       bodyHtml += '<span class="status-dot ' + job.status + '"></span>';
       bodyHtml += '<span class="job-name stacked"><span class="line1">' + shortName(job.customer) + '</span><span class="line2">' + job.type + '</span></span>';
+      bodyHtml += '<button class="row-label-delete" data-deletejob="' + job.id + '" title="Delete project">×</button>';
       bodyHtml += '</div>';
       bodyHtml += '<div class="row-track">';
       bodyHtml += '<div class="bar' + barClass + '" data-job="' + job.id + '" data-type="job" style="left:' + (leftDays * dayWidth) + 'px;width:' + (widthDays * dayWidth - 2) + 'px;background:' + jobColor + '">';
@@ -770,14 +800,6 @@
       bodyHtml += '</div></div>';
     }
 
-    // Add Project row
-    bodyHtml += '<div class="timeline-row add-project-row">';
-    bodyHtml += '<div class="row-label add-project-btn" id="addProjectBtn2">';
-    bodyHtml += '<span class="add-icon">+</span>';
-    bodyHtml += '<span class="job-name">Add Project</span>';
-    bodyHtml += '</div>';
-    bodyHtml += '<div class="row-track"></div></div>';
-
     bodyHtml += '</div>';
 
     $timeline.innerHTML = headerHtml + bodyHtml;
@@ -788,7 +810,14 @@
       setTimeout(function() { $timeline.classList.remove('view-enter'); }, 300);
     }
 
-    document.getElementById('addProjectBtn2').addEventListener('click', addProject);
+    // Delete project from row label
+    $timeline.querySelectorAll('.row-label-delete[data-deletejob]').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var jid = parseInt(btn.dataset.deletejob);
+        deleteProject(jid);
+      });
+    });
 
     // Click navigates to Daily view for that project
     $timeline.querySelectorAll('.bar[data-job], .row-label[data-job]').forEach(function(el) {
@@ -898,6 +927,7 @@
     newAddBtn.addEventListener('click', function() {
       var text = newInput.value.trim();
       if (!text) return;
+      pushUndo();
       job.materials.push({ text: text, done: false });
       newInput.value = '';
       saveState();
@@ -932,13 +962,46 @@
       var note = job.notesList[ni];
       var timeStr = note.time ? new Date(note.time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
       notesHtml += '<div class="note-item" data-ni="' + ni + '">';
-      notesHtml += '<div style="flex:1"><div class="note-text">' + note.text.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+      notesHtml += '<div style="flex:1"><div class="note-text" data-ni="' + ni + '">' + note.text.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
       if (timeStr) notesHtml += '<div class="note-time">' + timeStr + '</div>';
       notesHtml += '</div>';
+      notesHtml += '<button class="note-edit" data-ni="' + ni + '" title="Edit">✎</button>';
       notesHtml += '<button class="note-delete" data-ni="' + ni + '">×</button>';
       notesHtml += '</div>';
     }
     $notesList.innerHTML = notesHtml;
+
+    // Note edit (click text or edit icon)
+    function startNoteEdit(ni) {
+      var noteItem = $notesList.querySelector('.note-item[data-ni="' + ni + '"]');
+      var noteTextEl = noteItem.querySelector('.note-text');
+      var currentText = job.notesList[ni].text;
+      var textarea = document.createElement('textarea');
+      textarea.className = 'note-edit-area';
+      textarea.value = currentText;
+      noteTextEl.replaceWith(textarea);
+      textarea.focus();
+      function saveEdit() {
+        var newText = textarea.value.trim();
+        if (newText && newText !== currentText) {
+          pushUndo();
+          job.notesList[ni].text = newText;
+          saveState();
+        }
+        renderMaterials(job);
+      }
+      textarea.addEventListener('blur', saveEdit);
+      textarea.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(); }
+      });
+    }
+    $notesList.querySelectorAll('.note-text').forEach(function(el) {
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', function() { startNoteEdit(parseInt(el.dataset.ni)); });
+    });
+    $notesList.querySelectorAll('.note-edit').forEach(function(btn) {
+      btn.addEventListener('click', function() { startNoteEdit(parseInt(btn.dataset.ni)); });
+    });
 
     // Note add
     var noteInput = document.getElementById('newNoteInput');
@@ -951,6 +1014,7 @@
     newNoteBtn.addEventListener('click', function() {
       var text = newNoteInput.value.trim();
       if (!text) return;
+      pushUndo();
       job.notesList.push({ text: text, time: Date.now() });
       newNoteInput.value = '';
       saveState();
@@ -1054,6 +1118,7 @@
   function deleteProject(jobId) {
     showConfirmDialog('Delete this entire project?', function(confirmed) {
       if (!confirmed) return;
+      pushUndo();
       jobs = jobs.filter(function(j) { return j.id !== jobId; });
       saveState();
       $detailPanel.classList.remove('visible');
@@ -1065,12 +1130,14 @@
   function deleteTask(jobId, taskIndex) {
     showConfirmDialog('Delete this task?', function(confirmed) {
       if (!confirmed) return;
+      pushUndo();
       var job = jobs.find(function(j) { return j.id === jobId; });
       if (!job) return;
       job.tasks.splice(taskIndex, 1);
       autoStaggerTasks(job);
       $detailPanel.classList.remove('visible');
-      renderProject(jobId);
+      if (currentLevel === 0) renderDaily(jobId);
+      else renderProject(jobId);
     });
   }
 
@@ -1150,6 +1217,7 @@
 
     // ── Bind editable fields ──
     function applyFieldChanges() {
+      pushUndo();
       saveScrollPos();
       var newName = document.getElementById('taskNameInput').value.trim();
       var newOwner = document.getElementById('taskOwnerInput').value.trim();
@@ -1404,7 +1472,7 @@
     $btnProjects.classList.toggle('active', currentLevel === 2);
   }
 
-  function showTimeline() {
+  function showMonthly() {
     renderPortfolio();
   }
 
@@ -1412,7 +1480,7 @@
     renderDaily(currentJobId);
   }
 
-  function showProjects() {
+  function showWeekly() {
     renderProject();
   }
 
@@ -1459,6 +1527,7 @@
       { name: 'Final Punch & Cleanup', days: [27, 27] }
     ];
 
+    pushUndo();
     var phaseKeys = Object.keys(PHASE_COLORS);
     var tasks = defaultTasks.map(function(t, i) {
       return {
@@ -1583,6 +1652,7 @@
     var direction = dayDelta > 0 ? dayDelta + ' day' + (dayDelta > 1 ? 's' : '') + ' later' : Math.abs(dayDelta) + ' day' + (Math.abs(dayDelta) > 1 ? 's' : '') + ' earlier';
 
     function applyDrag() {
+      pushUndo();
       if (ds.type === 'job') {
         var job = jobs.find(function(j) { return j.id === ds.jobId; });
         if (job) {
@@ -1715,6 +1785,7 @@
     var dirT = dayDelta > 0 ? dayDelta + ' day' + (dayDelta > 1 ? 's' : '') + ' later' : Math.abs(dayDelta) + ' day' + (Math.abs(dayDelta) > 1 ? 's' : '') + ' earlier';
 
     function applyTouchDrag() {
+      pushUndo();
       if (dsT.type === 'job') {
         var job = jobs.find(function(j) { return j.id === dsT.jobId; });
         if (job) {
@@ -1897,6 +1968,7 @@
       var taskName = prompt('Task name:', 'New Task');
       if (!taskName || !taskName.trim()) return;
 
+      pushUndo();
       var usedColors = job.tasks.map(function(t) { return t.color; });
       var color = nextColor(usedColors);
 
@@ -1920,6 +1992,7 @@
       var customerName = prompt('Customer name:', 'New Project');
       if (!customerName || !customerName.trim()) return;
 
+      pushUndo();
       var newId = jobs.length > 0 ? Math.max.apply(null, jobs.map(function(j) { return j.id; })) + 1 : 1;
       jobs.push({
         id: newId,
@@ -1934,7 +2007,7 @@
 
       saveState();
       saveScrollPos();
-      if (currentLevel === 1) showTimeline();
+      if (currentLevel === 1) showMonthly();
       else renderProject();
     }
   });
@@ -1942,14 +2015,16 @@
   // ── Public API ──
   window.app = {
     showDaily,
-    showTimeline,
-    showProjects,
+    showMonthly,
+    showWeekly,
     closeDetail,
     deleteProject,
-    deleteTask
+    deleteTask,
+    undo
   };
 
   // ── Init ──
   renderPortfolio();
+  updateUndoBtn();
 
 })();
