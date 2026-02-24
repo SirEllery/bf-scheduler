@@ -5,14 +5,12 @@
   'use strict';
 
   // ── State ──
-  let jobs = JSON.parse(JSON.stringify(SAMPLE_JOBS)); // deep clone
-  let currentLevel = 1;  // 0=daily, 1=timeline, 2=project, 3=task
-  let currentJobId = null;
-  let currentTaskIndex = null;
-  let selectedJobId = null;
-
+  var jobs = JSON.parse(JSON.stringify(SAMPLE_JOBS)); // deep clone
+  var currentLevel = 1;  // 0=daily, 1=timeline, 2=project, 3=task
+  var currentJobId = null;
+  var currentTaskIndex = null;
   // Load saved edits from localStorage
-  const saved = localStorage.getItem('bf_jobs');
+  var saved = localStorage.getItem('bf_jobs');
   if (saved) {
     try { jobs = JSON.parse(saved); } catch(e) { /* use defaults */ }
   }
@@ -48,8 +46,8 @@
   }
 
   // ── Templates ──
-  let templates = [];
-  const savedTemplates = localStorage.getItem('bf_templates');
+  var templates = [];
+  var savedTemplates = localStorage.getItem('bf_templates');
   if (savedTemplates) {
     try { templates = JSON.parse(savedTemplates); } catch(e) { /* ignore */ }
   }
@@ -106,8 +104,8 @@
       return {
         name: t.name,
         owner: t.owner || '',
-        start: dateToStringHelper(addDays(startDate, t.startDay)),
-        end: dateToStringHelper(addDays(startDate, t.endDay)),
+        start: dateToString(addDays(startDate, t.startDay)),
+        end: dateToString(addDays(startDate, t.endDay)),
         status: 'scheduled',
         color: t.color,
         notes: '',
@@ -122,8 +120,8 @@
       customer: name.trim(),
       type: template.type || template.name,
       status: 'scheduled',
-      startDate: dateToStringHelper(startDate),
-      endDate: dateToStringHelper(addDays(startDate, lastDay)),
+      startDate: dateToString(startDate),
+      endDate: dateToString(addDays(startDate, lastDay)),
       tasks: tasks
     });
     saveState();
@@ -189,20 +187,20 @@
 
   // ── Name Helper ──
   function shortName(fullName) {
-    const parts = fullName.trim().split(/\s+/);
+    var parts = fullName.trim().split(/\s+/);
     if (parts.length <= 1) return fullName;
     // "Tom & Amy Wilson" → "Tom & Amy W."
     // "John Smith" → "John S."
-    const last = parts[parts.length - 1];
-    const rest = parts.slice(0, -1).join(' ');
+    var last = parts[parts.length - 1];
+    var rest = parts.slice(0, -1).join(' ');
     return rest + ' ' + last.charAt(0) + '.';
   }
 
   // ── Date Helpers ──
-  const DAY_MS = 86400000;
+  var DAY_MS = 86400000;
 
   function parseDate(s) { 
-    const [y,m,d] = s.split('-').map(Number);
+    var [y,m,d] = s.split('-').map(Number);
     return new Date(y, m-1, d);
   }
 
@@ -215,37 +213,36 @@
   }
 
   function getMonday(d) {
-    const dt = new Date(d);
-    const day = dt.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
+    var dt = new Date(d);
+    var day = dt.getDay();
+    var diff = day === 0 ? -6 : 1 - day;
     dt.setDate(dt.getDate() + diff);
     return dt;
   }
 
   function addDays(d, n) {
-    const r = new Date(d);
+    var r = new Date(d);
     r.setDate(r.getDate() + n);
     return r;
   }
 
-  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const MONTH_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var MONTH_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
   // ── Today ──
-  const today = new Date();
+  var today = new Date();
   today.setHours(0,0,0,0);
 
   // ── DOM refs ──
-  const $timeline = document.getElementById('timeline');
-  const $statsBar = document.getElementById('statsBar');
-  const $btnDaily = document.getElementById('btnDaily');
-  const $btnTimeline = document.getElementById('btnTimeline');
-  const $btnProjects = document.getElementById('btnProjects');
-  const $tooltip = document.getElementById('tooltip');
-  const $detailPanel = document.getElementById('detailPanel');
-  const $detailContent = document.getElementById('detailContent');
-  const $timelineContainer = document.getElementById('timelineContainer');
-  const $bottomBar = document.getElementById('bottomBar');
+  var $timeline = document.getElementById('timeline');
+  var $statsBar = document.getElementById('statsBar');
+  var $btnDaily = document.getElementById('btnDaily');
+  var $btnTimeline = document.getElementById('btnTimeline');
+  var $btnProjects = document.getElementById('btnProjects');
+  var $tooltip = document.getElementById('tooltip');
+  var $detailPanel = document.getElementById('detailPanel');
+  var $detailContent = document.getElementById('detailContent');
+  var $timelineContainer = document.getElementById('timelineContainer');
+  var $bottomBar = document.getElementById('bottomBar');
 
   // ── Lightbox ──
   function openLightbox(src) {
@@ -271,10 +268,10 @@
   }
 
   function positionTooltip(e) {
-    const pad = 12;
-    let x = e.clientX + pad;
-    let y = e.clientY + pad;
-    const rect = $tooltip.getBoundingClientRect();
+    var pad = 12;
+    var x = e.clientX + pad;
+    var y = e.clientY + pad;
+    var rect = $tooltip.getBoundingClientRect();
     if (x + rect.width > window.innerWidth) x = e.clientX - rect.width - pad;
     if (y + rect.height > window.innerHeight) y = e.clientY - rect.height - pad;
     $tooltip.style.left = x + 'px';
@@ -289,41 +286,50 @@
     if ($tooltip.classList.contains('visible')) positionTooltip(e);
   });
 
-  // ── Compute timeline range and pixel mapping ──
-  function computeRange(startDate, endDate, paddingDays) {
-    const rangeStart = getMonday(addDays(startDate, -paddingDays));
-    const rangeEnd = addDays(endDate, paddingDays);
-    const totalDays = daysBetween(rangeStart, rangeEnd);
-    return { rangeStart, rangeEnd, totalDays };
+  // ── Render grid lines, month boundaries, and today line into body HTML ──
+  function renderGridAndToday(range, dayWidth, sidebarW) {
+    var html = '';
+    for (var gi = 0; gi < range.totalDays; gi++) {
+      var gDay = addDays(range.rangeStart, gi);
+      var x = gi * dayWidth + sidebarW;
+      var isMon = gDay.getDay() === 1;
+      var isWeekend = gDay.getDay() === 0 || gDay.getDay() === 6;
+      var isMonthStart = gDay.getDate() === 1;
+      if (isWeekend) {
+        html += '<div class="grid-line weekend-bg" style="left:' + x + 'px;width:' + dayWidth + 'px"></div>';
+      }
+      var gridCls = 'grid-line';
+      if (isMonthStart) gridCls += ' grid-month';
+      else if (isMon) gridCls += ' grid-monday';
+      html += '<div class="' + gridCls + '" style="left:' + x + 'px"></div>';
+    }
+    buildMonthBoundaries(range, dayWidth);
+    var tx = daysBetween(range.rangeStart, today) * dayWidth + sidebarW;
+    html += '<div class="today-line" style="left:' + tx + 'px"></div>';
+    return html;
   }
 
   // ── Build 3-layer project header: Month → Mon/Fri labels → Day ticks ──
   function buildHeader(range, dayWidth) {
-    const { rangeStart, totalDays } = range;
-    const trackWidth = totalDays * dayWidth;
+    var { rangeStart, totalDays } = range;
+    var trackWidth = totalDays * dayWidth;
 
     // Layer 1: Months
-    const months = [];
-    let d = new Date(rangeStart);
+    var months = [];
+    var d = new Date(rangeStart);
     while (d < addDays(rangeStart, totalDays)) {
-      const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-      const visEnd = monthEnd > addDays(rangeStart, totalDays) ? addDays(rangeStart, totalDays) : monthEnd;
-      const days = daysBetween(d, visEnd) + 1;
+      var monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+      var visEnd = monthEnd > addDays(rangeStart, totalDays) ? addDays(rangeStart, totalDays) : monthEnd;
+      var days = daysBetween(d, visEnd) + 1;
       months.push({ label: MONTH_FULL[d.getMonth()] + ' ' + d.getFullYear(), days: days });
       d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
     }
 
     // Layer 2: Mon/Fri positioned absolutely over their exact day
-    // Layer 3: Day tick marks for every day
-    const monFriMarkers = [];
-    const dayTicks = [];
-    for (let i = 0; i < totalDays; i++) {
-      const dd = addDays(rangeStart, i);
-      const dow = dd.getDay();
-      const isWeekend = (dow === 0 || dow === 6);
-      const isToday = dd.getTime() === today.getTime();
-
-      dayTicks.push({ isWeekend: isWeekend, isToday: isToday, isMonday: dow === 1 });
+    var monFriMarkers = [];
+    for (var i = 0; i < totalDays; i++) {
+      var dd = addDays(rangeStart, i);
+      var dow = dd.getDay();
 
       if (dow === 1) {
         monFriMarkers.push({ label: 'Mon ' + dd.getDate(), dayIndex: i });
@@ -332,13 +338,13 @@
       }
     }
 
-    let html = '<div class="timeline-header">';
+    var html = '<div class="timeline-header">';
     html += '<div class="timeline-sidebar-header">Projects</div>';
     html += '<div class="timeline-dates" style="width:' + trackWidth + 'px">';
 
     // Layer 1: Month row (with absolute-positioned dividers for alignment)
     html += '<div class="month-row" style="position:relative">';
-    for (const m of months) {
+    for (var m of months) {
       html += '<div class="month-label" style="width:' + (m.days * dayWidth) + 'px">' + m.label + '</div>';
     }
     // Month divider lines inside header, matching body grid-month positions
@@ -353,13 +359,11 @@
 
     // Layer 2: Mon/Fri label row (positioned at exact day columns)
     html += '<div class="mf-row" style="position:relative;height:20px;">';
-    for (const mf of monFriMarkers) {
-      const left = mf.dayIndex * dayWidth;
+    for (var mf of monFriMarkers) {
+      var left = mf.dayIndex * dayWidth;
       html += '<div class="mf-label" style="left:' + left + 'px">' + mf.label + '</div>';
     }
     html += '</div>';
-
-    // Layer 3: Day tick marks removed — grid lines in body suffice
 
     html += '</div></div>';
     return { html, trackWidth };
@@ -368,26 +372,26 @@
   // ── Build daily header (for task-level view) ──
   function buildHeaderDaily(range, dayWidth, sidebarLabel) {
     sidebarLabel = sidebarLabel || 'Tasks';
-    const { rangeStart, totalDays } = range;
-    const trackWidth = totalDays * dayWidth;
+    var { rangeStart, totalDays } = range;
+    var trackWidth = totalDays * dayWidth;
 
     // Collect months
-    const months = [];
-    let d = new Date(rangeStart);
+    var months = [];
+    var d = new Date(rangeStart);
     while (d < addDays(rangeStart, totalDays)) {
-      const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-      const visEnd = monthEnd > addDays(rangeStart, totalDays) ? addDays(rangeStart, totalDays) : monthEnd;
-      const days = daysBetween(d, visEnd) + 1;
+      var monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+      var visEnd = monthEnd > addDays(rangeStart, totalDays) ? addDays(rangeStart, totalDays) : monthEnd;
+      var days = daysBetween(d, visEnd) + 1;
       months.push({ label: MONTH_FULL[d.getMonth()] + ' ' + d.getFullYear(), days: days });
       d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
     }
 
     // Individual days
-    const dayLabels = [];
-    const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-    for (let i = 0; i < totalDays; i++) {
-      const dd = addDays(rangeStart, i);
-      const isWeekend = dd.getDay() === 0 || dd.getDay() === 6;
+    var dayLabels = [];
+    var DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    for (var i = 0; i < totalDays; i++) {
+      var dd = addDays(rangeStart, i);
+      var isWeekend = dd.getDay() === 0 || dd.getDay() === 6;
       dayLabels.push({
         label: DOW[dd.getDay()] + ' ' + dd.getDate(),
         isWeekend: isWeekend,
@@ -395,13 +399,13 @@
       });
     }
 
-    let html = '<div class="timeline-header">';
+    var html = '<div class="timeline-header">';
     html += '<div class="timeline-sidebar-header">' + sidebarLabel + '</div>';
     html += '<div class="timeline-dates" style="width:' + trackWidth + 'px">';
 
     // Month row (with aligned dividers)
     html += '<div class="month-row" style="position:relative">';
-    for (const m of months) {
+    for (var m of months) {
       html += '<div class="month-label" style="width:' + (m.days * dayWidth) + 'px">' + m.label + '</div>';
     }
     var cumDays2 = 0;
@@ -415,8 +419,8 @@
 
     // Day row
     html += '<div class="day-row">';
-    for (const dl of dayLabels) {
-      let cls = 'day-label';
+    for (var dl of dayLabels) {
+      var cls = 'day-label';
       if (dl.isWeekend) cls += ' weekend';
       if (dl.isToday) cls += ' today-label';
       html += '<div class="' + cls + '" style="width:' + dayWidth + 'px">' + dl.label + '</div>';
@@ -430,7 +434,7 @@
   // ── Progress for a job ──
   function jobProgress(job) {
     if (!job.tasks.length) return 0;
-    const done = job.tasks.filter(t => t.status === 'complete').length;
+    var done = job.tasks.filter(function(t) { return t.status === 'complete'; }).length;
     return Math.round((done / job.tasks.length) * 100);
   }
 
@@ -453,8 +457,8 @@
   }
 
   // ── Floating month label ──
-  const $floatingMonth = document.getElementById('floatingMonth');
-  let monthBoundaries = []; // [{x: px from content left, label: 'February 2026'}, ...]
+  var $floatingMonth = document.getElementById('floatingMonth');
+  var monthBoundaries = []; // [{x: px from content left, label: 'February 2026'}, ...]
 
   function buildMonthBoundaries(range, dayWidth) {
     var boundaries = [];
@@ -493,7 +497,7 @@
   $timelineContainer.addEventListener('scroll', updateFloatingMonth);
 
   // ── Scroll position preservation ──
-  let savedScrollLeft = null;
+  var savedScrollLeft = null;
 
   function saveScrollPos() {
     savedScrollLeft = $timelineContainer.scrollLeft;
@@ -507,8 +511,8 @@
   }
 
   // ── Infinite scroll state ──
-  let infiniteState = null;
-  let scrollHandler = null;
+  var infiniteState = null;
+  var scrollHandler = null;
 
   function detachInfiniteScroll() {
     if (scrollHandler) {
@@ -569,14 +573,13 @@
     currentLevel = 1;
     currentJobId = null;
     currentTaskIndex = null;
-    selectedJobId = null;
     $detailPanel.classList.remove('visible');
     $bottomBar.style.display = 'none';
 
     // Stats
-    const active = jobs.filter(j => j.status === 'active').length;
-    const scheduled = jobs.filter(j => j.status === 'scheduled').length;
-    const completed = jobs.filter(j => j.status === 'completed').length;
+    var active = jobs.filter(function(j) { return j.status === 'active'; }).length;
+    var scheduled = jobs.filter(function(j) { return j.status === 'scheduled'; }).length;
+    var completed = jobs.filter(function(j) { return j.status === 'completed'; }).length;
     $statsBar.innerHTML =
       '<div class="stat"><strong>' + active + '</strong> Active</div>' +
       '<div class="stat"><strong>' + scheduled + '</strong> Scheduled</div>' +
@@ -602,44 +605,23 @@
     var containerWidth_tl = $timelineContainer.clientWidth || window.innerWidth;
     var dayWidth = Math.floor((containerWidth_tl - sidebarW_tl) / 90);
     if (dayWidth < 4) dayWidth = 4;
-    const { html: headerHtml, trackWidth } = buildHeader(range, dayWidth);
+    var { html: headerHtml, trackWidth } = buildHeader(range, dayWidth);
 
     // Body rows
-    const sorted = [...jobs].sort((a,b) => parseDate(a.startDate) - parseDate(b.startDate));
-    let bodyHtml = '<div class="timeline-body" style="position:relative">';
+    var sorted = jobs.slice().sort(function(a, b) { return parseDate(a.startDate) - parseDate(b.startDate); });
+    var bodyHtml = '<div class="timeline-body" style="position:relative">';
 
-    // Grid lines (every day, stronger on Mondays, shaded weekends, month boundaries)
-    for (let gi = 0; gi < range.totalDays; gi++) {
-      const gDay = addDays(range.rangeStart, gi);
-      const x = gi * dayWidth + getSidebarW();
-      const isMon = gDay.getDay() === 1;
-      const isWeekend = gDay.getDay() === 0 || gDay.getDay() === 6;
-      const isMonthStart = gDay.getDate() === 1;
-      if (isWeekend) {
-        bodyHtml += '<div class="grid-line weekend-bg" style="left:' + x + 'px;width:' + dayWidth + 'px"></div>';
-      }
-      var gridCls = 'grid-line';
-      if (isMonthStart) gridCls += ' grid-month';
-      else if (isMon) gridCls += ' grid-monday';
-      bodyHtml += '<div class="' + gridCls + '" style="left:' + x + 'px"></div>';
-    }
+    bodyHtml += renderGridAndToday(range, dayWidth, getSidebarW());
 
-    // Build month boundaries for floating label
-    buildMonthBoundaries(range, dayWidth);
-
-    // Today line (always render — range is huge)
-    const tx = daysBetween(range.rangeStart, today) * dayWidth + getSidebarW();
-    bodyHtml += '<div class="today-line" style="left:' + tx + 'px"></div>';
-
-    for (let i = 0; i < sorted.length; i++) {
-      const job = sorted[i];
-      const jobColor = JOB_COLORS[job.id % JOB_COLORS.length];
-      const start = parseDate(job.startDate);
-      const end = parseDate(job.endDate);
-      const leftDays = daysBetween(range.rangeStart, start);
-      const widthDays = daysBetween(start, end) + 1;
-      const pct = jobProgress(job);
-      const barClass = job.status === 'completed' ? ' completed-bar' : '';
+    for (var i = 0; i < sorted.length; i++) {
+      var job = sorted[i];
+      var jobColor = JOB_COLORS[job.id % JOB_COLORS.length];
+      var start = parseDate(job.startDate);
+      var end = parseDate(job.endDate);
+      var leftDays = daysBetween(range.rangeStart, start);
+      var widthDays = daysBetween(start, end) + 1;
+      var pct = jobProgress(job);
+      var barClass = job.status === 'completed' ? ' completed-bar' : '';
 
       bodyHtml += '<div class="timeline-row">';
       bodyHtml += '<div class="row-label" data-job="' + job.id + '">';
@@ -673,7 +655,7 @@
 
     if (!existingRange) {
       $timeline.classList.add('view-enter');
-      setTimeout(() => $timeline.classList.remove('view-enter'), 300);
+      setTimeout(function() { $timeline.classList.remove('view-enter'); }, 300);
     }
 
     // Add Project click
@@ -681,19 +663,19 @@
     document.getElementById('fromTemplateBtn').addEventListener('click', showTemplateDialog);
 
     // Bind events: click navigates to daily view for that project
-    $timeline.querySelectorAll('.bar[data-job], .row-label[data-job]').forEach(el => {
-      el.addEventListener('click', () => {
+    $timeline.querySelectorAll('.bar[data-job], .row-label[data-job]').forEach(function(el) {
+      el.addEventListener('click', function() {
         if (Date.now() - lastDragEnd < 300) return;
-        const jid = parseInt(el.dataset.job);
+        var jid = parseInt(el.dataset.job);
         renderDaily(jid);
       });
     });
 
     // Tooltips on bars
-    $timeline.querySelectorAll('.bar[data-job]').forEach(el => {
-      const job = jobs.find(j => j.id === parseInt(el.dataset.job));
-      el.addEventListener('mouseenter', (e) => {
-        const pct = jobProgress(job);
+    $timeline.querySelectorAll('.bar[data-job]').forEach(function(el) {
+      var job = jobs.find(function(j) { return j.id === parseInt(el.dataset.job); });
+      el.addEventListener('mouseenter', function(e) {
+        var pct = jobProgress(job);
         showTooltip(e,
           '<div class="tooltip-title">' + job.customer + ' — ' + job.type + '</div>' +
           '<div class="tooltip-row"><strong>Start:</strong> ' + formatDate(parseDate(job.startDate)) + '</div>' +
@@ -758,27 +740,10 @@
     var headerHtml = headerResult.html;
     var trackWidth = headerResult.trackWidth;
 
-    var sorted = [...jobs].sort(function(a, b) { return parseDate(a.startDate) - parseDate(b.startDate); });
+    var sorted = jobs.slice().sort(function(a, b) { return parseDate(a.startDate) - parseDate(b.startDate); });
     var bodyHtml = '<div class="timeline-body" style="position:relative">';
 
-    // Grid lines
-    for (var gi = 0; gi < range.totalDays; gi++) {
-      var gDay = addDays(range.rangeStart, gi);
-      var x = gi * dayWidth + sidebarW;
-      var isWeekend = gDay.getDay() === 0 || gDay.getDay() === 6;
-      var isMonthStart = gDay.getDate() === 1;
-      if (isWeekend) {
-        bodyHtml += '<div class="grid-line weekend-bg" style="left:' + x + 'px;width:' + dayWidth + 'px"></div>';
-      }
-      var gridCls = 'grid-line';
-      if (isMonthStart) gridCls += ' grid-month';
-      bodyHtml += '<div class="' + gridCls + '" style="left:' + x + 'px"></div>';
-    }
-
-    buildMonthBoundaries(range, dayWidth);
-
-    var tx = daysBetween(range.rangeStart, today) * dayWidth + sidebarW;
-    bodyHtml += '<div class="today-line" style="left:' + tx + 'px"></div>';
+    bodyHtml += renderGridAndToday(range, dayWidth, sidebarW);
 
     for (var i = 0; i < sorted.length; i++) {
       var job = sorted[i];
@@ -864,49 +829,11 @@
 
   // ── Pick next unused phase color ──
   function nextColor(usedColors) {
-    const allColors = Object.keys(PHASE_COLORS);
-    for (const c of allColors) {
+    var allColors = Object.keys(PHASE_COLORS);
+    for (var c of allColors) {
       if (!usedColors.includes(c)) return c;
     }
     return 'other'; // all used, fallback
-  }
-
-  // ── Add Task to a Project ──
-  function addTask(jobId) {
-    const job = jobs.find(j => j.id === jobId);
-    if (!job) return;
-
-    const name = prompt('Task Name:');
-    if (!name || !name.trim()) return;
-
-    const owner = prompt('Owner:', '') || '';
-
-    // Auto-select color (first unused)
-    const usedColors = job.tasks.map(t => t.color);
-    const color = nextColor(usedColors);
-
-    // Auto-select dates: after last task, 2-day duration
-    let startDate;
-    if (job.tasks.length > 0) {
-      const lastTask = job.tasks[job.tasks.length - 1];
-      startDate = addDays(parseDate(lastTask.end), 1);
-    } else {
-      startDate = parseDate(job.startDate);
-    }
-    const endDate = addDays(startDate, 1);
-
-    job.tasks.push({
-      name: name.trim(),
-      owner: owner.trim(),
-      start: dateToStringHelper(startDate),
-      end: dateToStringHelper(endDate),
-      status: 'scheduled',
-      color: color,
-      notes: ''
-    });
-
-    autoStaggerTasks(job);
-    renderProject(jobId);
   }
 
   // ── Render Materials + Photos (sticky bottom bar) ──
@@ -947,9 +874,9 @@
     var matList = document.getElementById('materialsList');
     var photGrid = document.getElementById('photosGrid');
 
-    let html = '';
-    for (let mi = 0; mi < job.materials.length; mi++) {
-      const mat = job.materials[mi];
+    var html = '';
+    for (var mi = 0; mi < job.materials.length; mi++) {
+      var mat = job.materials[mi];
       html += '<div class="material-item" data-index="' + mi + '">';
       html += '<input type="checkbox" class="material-check" ' + (mat.done ? 'checked' : '') + ' data-mi="' + mi + '">';
       html += '<span class="material-text' + (mat.done ? ' done' : '') + '">' + mat.text + '</span>';
@@ -959,17 +886,17 @@
     matList.innerHTML = html;
 
     // Rebind events
-    const matInput = document.getElementById('newMaterialInput');
-    const matAddBtn = document.getElementById('addMaterialBtn');
+    var matInput = document.getElementById('newMaterialInput');
+    var matAddBtn = document.getElementById('addMaterialBtn');
 
     // Clone to remove old listeners
-    const newAddBtn = matAddBtn.cloneNode(true);
+    var newAddBtn = matAddBtn.cloneNode(true);
     matAddBtn.parentNode.replaceChild(newAddBtn, matAddBtn);
-    const newInput = matInput.cloneNode(true);
+    var newInput = matInput.cloneNode(true);
     matInput.parentNode.replaceChild(newInput, matInput);
 
     newAddBtn.addEventListener('click', function() {
-      const text = newInput.value.trim();
+      var text = newInput.value.trim();
       if (!text) return;
       job.materials.push({ text: text, done: false });
       newInput.value = '';
@@ -982,7 +909,7 @@
 
     matList.querySelectorAll('.material-check').forEach(function(cb) {
       cb.addEventListener('change', function() {
-        const mi = parseInt(this.dataset.mi);
+        var mi = parseInt(this.dataset.mi);
         job.materials[mi].done = this.checked;
         saveState();
         renderMaterials(job);
@@ -990,7 +917,7 @@
     });
     matList.querySelectorAll('.material-delete').forEach(function(btn) {
       btn.addEventListener('click', function() {
-        const mi = parseInt(this.dataset.mi);
+        var mi = parseInt(this.dataset.mi);
         job.materials.splice(mi, 1);
         saveState();
         renderMaterials(job);
@@ -999,11 +926,11 @@
 
     // Notes (list-based)
     if (!job.notesList) job.notesList = [];
-    const $notesList = document.getElementById('notesList');
-    let notesHtml = '';
-    for (let ni = 0; ni < job.notesList.length; ni++) {
-      const note = job.notesList[ni];
-      const timeStr = note.time ? new Date(note.time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+    var $notesList = document.getElementById('notesList');
+    var notesHtml = '';
+    for (var ni = 0; ni < job.notesList.length; ni++) {
+      var note = job.notesList[ni];
+      var timeStr = note.time ? new Date(note.time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
       notesHtml += '<div class="note-item" data-ni="' + ni + '">';
       notesHtml += '<div style="flex:1"><div class="note-text">' + note.text.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
       if (timeStr) notesHtml += '<div class="note-time">' + timeStr + '</div>';
@@ -1014,15 +941,15 @@
     $notesList.innerHTML = notesHtml;
 
     // Note add
-    const noteInput = document.getElementById('newNoteInput');
-    const noteAddBtn = document.getElementById('addNoteBtn');
-    const newNoteBtn = noteAddBtn.cloneNode(true);
+    var noteInput = document.getElementById('newNoteInput');
+    var noteAddBtn = document.getElementById('addNoteBtn');
+    var newNoteBtn = noteAddBtn.cloneNode(true);
     noteAddBtn.parentNode.replaceChild(newNoteBtn, noteAddBtn);
-    const newNoteInput = noteInput.cloneNode(true);
+    var newNoteInput = noteInput.cloneNode(true);
     noteInput.parentNode.replaceChild(newNoteInput, noteInput);
 
     newNoteBtn.addEventListener('click', function() {
-      const text = newNoteInput.value.trim();
+      var text = newNoteInput.value.trim();
       if (!text) return;
       job.notesList.push({ text: text, time: Date.now() });
       newNoteInput.value = '';
@@ -1039,7 +966,7 @@
     // Note delete
     $notesList.querySelectorAll('.note-delete').forEach(function(btn) {
       btn.addEventListener('click', function() {
-        const ni = parseInt(this.dataset.ni);
+        var ni = parseInt(this.dataset.ni);
         job.notesList.splice(ni, 1);
         saveState();
         renderMaterials(job);
@@ -1047,8 +974,8 @@
     });
 
     // Photos
-    let photosHtml = '';
-    for (let pi = 0; pi < job.photos.length; pi++) {
+    var photosHtml = '';
+    for (var pi = 0; pi < job.photos.length; pi++) {
       photosHtml += '<div class="photo-wrapper" data-pi="' + pi + '">';
       photosHtml += '<img class="photo-thumb" src="' + job.photos[pi] + '" />';
       photosHtml += '<button class="photo-remove" data-pi="' + pi + '">×</button>';
@@ -1101,7 +1028,7 @@
     // Photo remove
     photGrid.querySelectorAll('.photo-remove').forEach(function(btn) {
       btn.addEventListener('click', function() {
-        const pi = parseInt(this.dataset.pi);
+        var pi = parseInt(this.dataset.pi);
         job.photos.splice(pi, 1);
         saveState();
         renderMaterials(job);
@@ -1115,8 +1042,8 @@
       return parseDate(a.start) - parseDate(b.start);
     });
     if (job.tasks.length > 0) {
-      const allStarts = job.tasks.map(function(t) { return parseDate(t.start); });
-      const allEnds = job.tasks.map(function(t) { return parseDate(t.end); });
+      var allStarts = job.tasks.map(function(t) { return parseDate(t.start); });
+      var allEnds = job.tasks.map(function(t) { return parseDate(t.end); });
       job.startDate = dateToString(new Date(Math.min.apply(null, allStarts)));
       job.endDate = dateToString(new Date(Math.max.apply(null, allEnds)));
     }
@@ -1138,7 +1065,7 @@
   function deleteTask(jobId, taskIndex) {
     showConfirmDialog('Delete this task?', function(confirmed) {
       if (!confirmed) return;
-      const job = jobs.find(function(j) { return j.id === jobId; });
+      var job = jobs.find(function(j) { return j.id === jobId; });
       if (!job) return;
       job.tasks.splice(taskIndex, 1);
       autoStaggerTasks(job);
@@ -1155,9 +1082,9 @@
     currentJobId = jobId;
     currentTaskIndex = taskIndex;
 
-    const job = jobs.find(j => j.id === jobId);
+    var job = jobs.find(function(j) { return j.id === jobId; });
     if (!job) return renderPortfolio();
-    const task = job.tasks[taskIndex];
+    var task = job.tasks[taskIndex];
     if (!task) return renderProject(jobId);
 
     updateToggle();
@@ -1165,15 +1092,15 @@
     // Show detail panel
     $detailPanel.classList.add('visible');
 
-    const color = PHASE_COLORS[task.color] || PHASE_COLORS.other;
-    const dur = daysBetween(parseDate(task.start), parseDate(task.end)) + 1;
+    var color = PHASE_COLORS[task.color] || PHASE_COLORS.other;
+    var dur = daysBetween(parseDate(task.start), parseDate(task.end)) + 1;
 
     // Build color picker options
-    let colorOptionsHtml = '';
-    const colorKeys = Object.keys(PHASE_COLORS);
-    for (let ci = 0; ci < colorKeys.length; ci++) {
-      const ck = colorKeys[ci];
-      const sel = task.color === ck ? ' selected' : '';
+    var colorOptionsHtml = '';
+    var colorKeys = Object.keys(PHASE_COLORS);
+    for (var ci = 0; ci < colorKeys.length; ci++) {
+      var ck = colorKeys[ci];
+      var sel = task.color === ck ? ' selected' : '';
       colorOptionsHtml += '<div class="color-option' + sel + '" data-color="' + ck + '" style="background:' + PHASE_COLORS[ck] + '" title="' + ck + '"></div>';
     }
 
@@ -1224,11 +1151,11 @@
     // ── Bind editable fields ──
     function applyFieldChanges() {
       saveScrollPos();
-      const newName = document.getElementById('taskNameInput').value.trim();
-      const newOwner = document.getElementById('taskOwnerInput').value.trim();
-      const newStatus = document.getElementById('taskStatus').value;
-      const newStart = document.getElementById('taskStartInput').value;
-      const newEnd = document.getElementById('taskEndInput').value;
+      var newName = document.getElementById('taskNameInput').value.trim();
+      var newOwner = document.getElementById('taskOwnerInput').value.trim();
+      var newStatus = document.getElementById('taskStatus').value;
+      var newStart = document.getElementById('taskStartInput').value;
+      var newEnd = document.getElementById('taskEndInput').value;
 
       if (newName) task.name = newName;
       task.owner = newOwner;
@@ -1240,8 +1167,8 @@
       }
 
       // Update job status
-      const allComplete = job.tasks.every(function(t) { return t.status === 'complete'; });
-      const anyActive = job.tasks.some(function(t) { return t.status === 'active'; });
+      var allComplete = job.tasks.every(function(t) { return t.status === 'complete'; });
+      var anyActive = job.tasks.some(function(t) { return t.status === 'active'; });
       if (allComplete) job.status = 'completed';
       else if (anyActive) job.status = 'active';
       else job.status = 'scheduled';
@@ -1290,12 +1217,12 @@
 
     // Task notes (list-based)
     if (!task.notesList) task.notesList = [];
-    const $taskNotesList = document.getElementById('taskNotesList');
+    var $taskNotesList = document.getElementById('taskNotesList');
     function renderTaskNotes() {
-      let nh = '';
-      for (let ni = 0; ni < task.notesList.length; ni++) {
-        const note = task.notesList[ni];
-        const timeStr = note.time ? new Date(note.time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+      var nh = '';
+      for (var ni = 0; ni < task.notesList.length; ni++) {
+        var note = task.notesList[ni];
+        var timeStr = note.time ? new Date(note.time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
         nh += '<div class="note-item" data-ni="' + ni + '">';
         nh += '<div style="flex:1"><div class="note-text">' + note.text.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
         if (timeStr) nh += '<div class="note-time">' + timeStr + '</div>';
@@ -1315,8 +1242,8 @@
     renderTaskNotes();
 
     document.getElementById('taskNoteAddBtn').addEventListener('click', function() {
-      const input = document.getElementById('taskNoteInput');
-      const text = input.value.trim();
+      var input = document.getElementById('taskNoteInput');
+      var text = input.value.trim();
       if (!text) return;
       task.notesList.push({ text: text, time: Date.now() });
       input.value = '';
@@ -1329,23 +1256,6 @@
         document.getElementById('taskNoteAddBtn').click();
       }
     });
-  }
-
-  // ── Select job (for bottom bar on Daily/Timeline) ──
-  function selectJob(jobId) {
-    selectedJobId = jobId;
-    // Highlight selected bar
-    $timeline.querySelectorAll('.bar[data-job]').forEach(function(b) {
-      b.classList.toggle('selected-bar', parseInt(b.dataset.job) === jobId);
-    });
-    var job = jobs.find(function(j) { return j.id === jobId; });
-    if (job) renderMaterials(job);
-  }
-
-  // ── Bottom bar prompt (no project selected) ──
-  function renderBottomBarPrompt() {
-    $bottomBar.style.display = 'flex';
-    $bottomBar.innerHTML = '<div class="bottom-bar-prompt">Click a project to see Materials, Notes & Photos</div>';
   }
 
   // ── Render Level 0: Daily (all tasks from all projects) ──
@@ -1406,25 +1316,7 @@
 
     var bodyHtml = '<div class="timeline-body" style="position:relative">';
 
-    // Grid lines
-    for (var gi = 0; gi <= range.totalDays; gi++) {
-      var gDay = addDays(range.rangeStart, gi);
-      var isWeekend = gDay.getDay() === 0 || gDay.getDay() === 6;
-      var isMonthStart = gDay.getDate() === 1;
-      var x = gi * dayWidth + getSidebarW();
-      if (isWeekend) {
-        bodyHtml += '<div class="grid-line weekend-bg" style="left:' + x + 'px;width:' + dayWidth + 'px"></div>';
-      }
-      var gcls = 'grid-line';
-      if (isMonthStart) gcls += ' grid-month';
-      bodyHtml += '<div class="' + gcls + '" style="left:' + x + 'px"></div>';
-    }
-
-    buildMonthBoundaries(range, dayWidth);
-
-    // Today line
-    var tx = daysBetween(range.rangeStart, today) * dayWidth + getSidebarW();
-    bodyHtml += '<div class="today-line" style="left:' + tx + 'px"></div>';
+    bodyHtml += renderGridAndToday(range, dayWidth, getSidebarW());
 
     for (var i = 0; i < job.tasks.length; i++) {
       var task = job.tasks[i];
@@ -1527,28 +1419,9 @@
   // ── Scroll to today ──
   function scrollToToday(range, dayWidth, sidebarWidth) {
     if (today >= range.rangeStart && today <= addDays(range.rangeStart, range.totalDays)) {
-      const todayX = daysBetween(range.rangeStart, today) * dayWidth + sidebarWidth;
-      const containerWidth = $timelineContainer.clientWidth;
+      var todayX = daysBetween(range.rangeStart, today) * dayWidth + sidebarWidth;
+      var containerWidth = $timelineContainer.clientWidth;
       $timelineContainer.scrollLeft = Math.max(0, todayX - containerWidth / 3);
-    }
-  }
-
-  // ── Navigation ──
-  function updateTaskStatus(val) {
-    saveScrollPos();
-    const job = jobs.find(j => j.id === currentJobId);
-    if (job && job.tasks[currentTaskIndex]) {
-      job.tasks[currentTaskIndex].status = val;
-      // Update job status based on tasks
-      const allComplete = job.tasks.every(t => t.status === 'complete');
-      const anyActive = job.tasks.some(t => t.status === 'active');
-      if (allComplete) job.status = 'completed';
-      else if (anyActive) job.status = 'active';
-      else job.status = 'scheduled';
-      saveState();
-      // Re-render project view in background (the bars)
-      renderProject(currentJobId);
-      renderTaskDetail(currentJobId, currentTaskIndex);
     }
   }
 
@@ -1563,23 +1436,20 @@
 
   // ── Add Project ──
   function addProject() {
-    const name = prompt('Customer Name:');
+    var name = prompt('Customer Name:');
     if (!name || !name.trim()) return;
-    const type = prompt('Job Type:', 'Master Bath Remodel');
+    var type = prompt('Job Type:', 'Master Bath Remodel');
     if (!type || !type.trim()) return;
 
     // Auto dates: start next Monday from today, 4 weeks
-    const startDate = getMonday(addDays(today, 7));
-    const startStr = dateToStringHelper(startDate);
-    const endDate = addDays(startDate, 27);
+    var startDate = getMonday(addDays(today, 7));
+    var startStr = dateToString(startDate);
+    var endDate = addDays(startDate, 27);
 
-    // Auto color: pick next unused job color
-    const usedJobColors = jobs.map((j, i) => i % JOB_COLORS.length);
-
-    const newId = Math.max(0, ...jobs.map(j => j.id)) + 1;
+    var newId = Math.max(0, ...jobs.map(function(j) { return j.id; })) + 1;
 
     // Default tasks with auto-assigned colors (each picks next unused)
-    const defaultTasks = [
+    var defaultTasks = [
       { name: 'Demo', days: [0, 2] },
       { name: 'Plumbing Rough-In', days: [3, 5] },
       { name: 'Backer Board & Waterproofing', days: [8, 10] },
@@ -1589,13 +1459,13 @@
       { name: 'Final Punch & Cleanup', days: [27, 27] }
     ];
 
-    const phaseKeys = Object.keys(PHASE_COLORS);
-    const tasks = defaultTasks.map(function(t, i) {
+    var phaseKeys = Object.keys(PHASE_COLORS);
+    var tasks = defaultTasks.map(function(t, i) {
       return {
         name: t.name,
         owner: '',
-        start: dateToStringHelper(addDays(startDate, t.days[0])),
-        end: dateToStringHelper(addDays(startDate, t.days[1])),
+        start: dateToString(addDays(startDate, t.days[0])),
+        end: dateToString(addDays(startDate, t.days[1])),
         status: 'scheduled',
         color: phaseKeys[i] || 'other',
         notes: ''
@@ -1608,42 +1478,35 @@
       type: type.trim(),
       status: 'scheduled',
       startDate: startStr,
-      endDate: dateToStringHelper(endDate),
+      endDate: dateToString(endDate),
       tasks: tasks
     });
     saveState();
     renderPortfolio();
   }
 
-  function dateToStringHelper(d) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
+  function dateToString(d) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var dd = String(d.getDate()).padStart(2, '0');
     return y + '-' + m + '-' + dd;
   }
 
   // ── Drag-to-resize bars ──
-  let dragState = null;
-
-  function dateToString(d) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return y + '-' + m + '-' + dd;
-  }
+  var dragState = null;
 
   // ── Drag: resize (handles) + move (bar body) ──
-  let dragStartTime = 0;
-  let lastDragEnd = 0;
+  var dragStartTime = 0;
+  var lastDragEnd = 0;
 
   document.addEventListener('mousedown', function(e) {
     // Check for handle first (resize), then bar body (move)
-    const handle = e.target.closest('.drag-handle');
-    const bar = handle ? handle.closest('.bar') : e.target.closest('.bar');
+    var handle = e.target.closest('.drag-handle');
+    var bar = handle ? handle.closest('.bar') : e.target.closest('.bar');
     if (!bar) return;
 
-    const mode = handle ? handle.dataset.side : 'move'; // 'left', 'right', or 'move'
-    const type = bar.dataset.type;
+    var mode = handle ? handle.dataset.side : 'move'; // 'left', 'right', or 'move'
+    var type = bar.dataset.type;
 
     e.preventDefault();
     e.stopPropagation();
@@ -1651,7 +1514,7 @@
     bar.classList.add('dragging');
     dragStartTime = Date.now();
 
-    const dayW = currentLevel === 1 ? 14 : 48;
+    var dayW = currentLevel === 1 ? 14 : 48;
 
     dragState = {
       bar: bar,
@@ -1676,24 +1539,24 @@
     if (!dragState) return;
     e.preventDefault();
 
-    const dx = e.clientX - dragState.startX;
-    const dayDelta = Math.round(dx / dragState.dayWidth);
-    const minWidth = dragState.dayWidth - 2;
+    var dx = e.clientX - dragState.startX;
+    var dayDelta = Math.round(dx / dragState.dayWidth);
+    var minWidth = dragState.dayWidth - 2;
 
     if (dragState.mode === 'move') {
       // Move entire bar
       dragState.bar.style.left = (dragState.origLeft + dayDelta * dragState.dayWidth) + 'px';
       dragState.currentDayDelta = dayDelta;
     } else if (dragState.mode === 'left') {
-      const newLeft = dragState.origLeft + dayDelta * dragState.dayWidth;
-      const newWidth = dragState.origWidth - dayDelta * dragState.dayWidth;
+      var newLeft = dragState.origLeft + dayDelta * dragState.dayWidth;
+      var newWidth = dragState.origWidth - dayDelta * dragState.dayWidth;
       if (newWidth >= minWidth) {
         dragState.bar.style.left = newLeft + 'px';
         dragState.bar.style.width = newWidth + 'px';
         dragState.currentDayDelta = dayDelta;
       }
     } else {
-      const newWidth = dragState.origWidth + dayDelta * dragState.dayWidth;
+      var newWidth = dragState.origWidth + dayDelta * dragState.dayWidth;
       if (newWidth >= minWidth) {
         dragState.bar.style.width = newWidth + 'px';
         dragState.currentDayDelta = dayDelta;
@@ -1706,9 +1569,7 @@
 
     dragState.bar.classList.remove('dragging');
 
-    const dayDelta = dragState.currentDayDelta || 0;
-    const wasDrag = Date.now() - dragStartTime > 200 || Math.abs(dayDelta) > 0;
-
+    var dayDelta = dragState.currentDayDelta || 0;
     // If no movement, treat as a click-through (don't block navigation)
     if (dayDelta === 0) {
       dragState = null;
@@ -1718,12 +1579,12 @@
     lastDragEnd = Date.now();
 
     // Snapshot original state for revert
-    const ds = dragState;
-    const direction = dayDelta > 0 ? dayDelta + ' day' + (dayDelta > 1 ? 's' : '') + ' later' : Math.abs(dayDelta) + ' day' + (Math.abs(dayDelta) > 1 ? 's' : '') + ' earlier';
+    var ds = dragState;
+    var direction = dayDelta > 0 ? dayDelta + ' day' + (dayDelta > 1 ? 's' : '') + ' later' : Math.abs(dayDelta) + ' day' + (Math.abs(dayDelta) > 1 ? 's' : '') + ' earlier';
 
     function applyDrag() {
       if (ds.type === 'job') {
-        const job = jobs.find(j => j.id === ds.jobId);
+        var job = jobs.find(function(j) { return j.id === ds.jobId; });
         if (job) {
           if (ds.mode === 'move') {
             job.startDate = dateToString(addDays(parseDate(job.startDate), dayDelta));
@@ -1742,9 +1603,9 @@
           else renderPortfolio();
         }
       } else if (ds.type === 'task') {
-        const job = jobs.find(j => j.id === ds.jobId);
+        var job = jobs.find(function(j) { return j.id === ds.jobId; });
         if (job && job.tasks[ds.taskIndex]) {
-          const task = job.tasks[ds.taskIndex];
+          var task = job.tasks[ds.taskIndex];
           if (ds.mode === 'move') {
             task.start = dateToString(addDays(parseDate(task.start), dayDelta));
             task.end = dateToString(addDays(parseDate(task.end), dayDelta));
@@ -1779,21 +1640,21 @@
 
   // ── Touch drag (handles only, no full-bar move on mobile) ──
   document.addEventListener('touchstart', function(e) {
-    const handle = e.target.closest('.drag-handle');
+    var handle = e.target.closest('.drag-handle');
     if (!handle) return;
 
-    const bar = handle.closest('.bar');
+    var bar = handle.closest('.bar');
     if (!bar) return;
 
     e.preventDefault();
-    const touch = e.touches[0];
-    const mode = handle.dataset.side;
-    const type = bar.dataset.type;
+    var touch = e.touches[0];
+    var mode = handle.dataset.side;
+    var type = bar.dataset.type;
 
     bar.classList.add('dragging');
     dragStartTime = Date.now();
 
-    const dayW = currentLevel === 1 ? 14 : 48;
+    var dayW = currentLevel === 1 ? 14 : 48;
 
     dragState = {
       bar: bar,
@@ -1819,21 +1680,21 @@
     if (!dragState || !dragState.isTouch) return;
     e.preventDefault();
 
-    const touch = e.touches[0];
-    const dx = touch.clientX - dragState.startX;
-    const dayDelta = Math.round(dx / dragState.dayWidth);
-    const minWidth = dragState.dayWidth - 2;
+    var touch = e.touches[0];
+    var dx = touch.clientX - dragState.startX;
+    var dayDelta = Math.round(dx / dragState.dayWidth);
+    var minWidth = dragState.dayWidth - 2;
 
     if (dragState.mode === 'left') {
-      const newLeft = dragState.origLeft + dayDelta * dragState.dayWidth;
-      const newWidth = dragState.origWidth - dayDelta * dragState.dayWidth;
+      var newLeft = dragState.origLeft + dayDelta * dragState.dayWidth;
+      var newWidth = dragState.origWidth - dayDelta * dragState.dayWidth;
       if (newWidth >= minWidth) {
         dragState.bar.style.left = newLeft + 'px';
         dragState.bar.style.width = newWidth + 'px';
         dragState.currentDayDelta = dayDelta;
       }
     } else {
-      const newWidth = dragState.origWidth + dayDelta * dragState.dayWidth;
+      var newWidth = dragState.origWidth + dayDelta * dragState.dayWidth;
       if (newWidth >= minWidth) {
         dragState.bar.style.width = newWidth + 'px';
         dragState.currentDayDelta = dayDelta;
@@ -1845,17 +1706,17 @@
     if (!dragState || !dragState.isTouch) return;
 
     dragState.bar.classList.remove('dragging');
-    const dayDelta = dragState.currentDayDelta || 0;
+    var dayDelta = dragState.currentDayDelta || 0;
 
     if (dayDelta === 0) { dragState = null; return; }
     lastDragEnd = Date.now();
 
-    const dsT = dragState;
-    const dirT = dayDelta > 0 ? dayDelta + ' day' + (dayDelta > 1 ? 's' : '') + ' later' : Math.abs(dayDelta) + ' day' + (Math.abs(dayDelta) > 1 ? 's' : '') + ' earlier';
+    var dsT = dragState;
+    var dirT = dayDelta > 0 ? dayDelta + ' day' + (dayDelta > 1 ? 's' : '') + ' later' : Math.abs(dayDelta) + ' day' + (Math.abs(dayDelta) > 1 ? 's' : '') + ' earlier';
 
     function applyTouchDrag() {
       if (dsT.type === 'job') {
-        const job = jobs.find(j => j.id === dsT.jobId);
+        var job = jobs.find(function(j) { return j.id === dsT.jobId; });
         if (job) {
           if (dsT.mode === 'left') {
             job.startDate = dateToString(addDays(parseDate(job.startDate), dayDelta));
@@ -1867,9 +1728,9 @@
           else renderPortfolio();
         }
       } else if (dsT.type === 'task') {
-        const job = jobs.find(j => j.id === dsT.jobId);
+        var job = jobs.find(function(j) { return j.id === dsT.jobId; });
         if (job && job.tasks[dsT.taskIndex]) {
-          const task = job.tasks[dsT.taskIndex];
+          var task = job.tasks[dsT.taskIndex];
           if (dsT.mode === 'left') {
             task.start = dateToString(addDays(parseDate(task.start), dayDelta));
           } else {
@@ -1896,7 +1757,7 @@
 
   // ── Confirm Dialog ──
   function showConfirmDialog(message, callback) {
-    const overlay = document.createElement('div');
+    var overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
     overlay.innerHTML =
       '<div class="confirm-box">' +
@@ -1925,7 +1786,7 @@
   }
 
   // ── Drag-to-create on empty timeline area (Level 1: projects, Level 2: tasks) ──
-  let createDrag = null;
+  var createDrag = null;
 
   document.addEventListener('mousedown', function(e) {
     if (currentLevel === 3) return; // no drag-create on task detail
@@ -2083,7 +1944,6 @@
     showDaily,
     showTimeline,
     showProjects,
-    updateTaskStatus,
     closeDetail,
     deleteProject,
     deleteTask

@@ -1,7 +1,7 @@
 // data.js — Bath Foundry sample project data
 // Swap this file for API calls later
 
-const PHASE_COLORS = {
+var PHASE_COLORS = {
   demo: '#e06c75',
   plumbing: '#61afef',
   electrical: '#e5c07b',
@@ -13,13 +13,13 @@ const PHASE_COLORS = {
   other: '#abb2bf'
 };
 
-const JOB_COLORS = [
+var JOB_COLORS = [
   '#61afef', '#98c379', '#e5c07b', '#c678dd',
   '#56b6c2', '#d19a66', '#e06c75', '#abb2bf',
   '#be5046', '#7ee787'
 ];
 
-const SAMPLE_JOBS = [
+var SAMPLE_JOBS = [
   {
     id: 1,
     customer: "John Smith",
