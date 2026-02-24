@@ -6,9 +6,10 @@
 
   // ── State ──
   let jobs = JSON.parse(JSON.stringify(SAMPLE_JOBS)); // deep clone
-  let currentLevel = 1;  // 1=timeline, 2=project, 3=task
+  let currentLevel = 1;  // 0=daily, 1=timeline, 2=project, 3=task
   let currentJobId = null;
   let currentTaskIndex = null;
+  let selectedJobId = null;
 
   // Load saved edits from localStorage
   const saved = localStorage.getItem('bf_jobs');
@@ -237,6 +238,7 @@
   // ── DOM refs ──
   const $timeline = document.getElementById('timeline');
   const $statsBar = document.getElementById('statsBar');
+  const $btnDaily = document.getElementById('btnDaily');
   const $btnTimeline = document.getElementById('btnTimeline');
   const $btnProjects = document.getElementById('btnProjects');
   const $tooltip = document.getElementById('tooltip');
@@ -244,8 +246,6 @@
   const $detailContent = document.getElementById('detailContent');
   const $timelineContainer = document.getElementById('timelineContainer');
   const $bottomBar = document.getElementById('bottomBar');
-  const $materialsList = document.getElementById('materialsList');
-  const $photosGrid = document.getElementById('photosGrid');
 
   // ── Lightbox ──
   function openLightbox(src) {
@@ -568,8 +568,9 @@
     currentLevel = 1;
     currentJobId = null;
     currentTaskIndex = null;
+    selectedJobId = null;
     $detailPanel.classList.remove('visible');
-    $bottomBar.style.display = 'none';
+    renderBottomBarPrompt();
 
     // Stats
     const active = jobs.filter(j => j.status === 'active').length;
@@ -674,9 +675,14 @@
     document.getElementById('addProjectBtn').addEventListener('click', addProject);
     document.getElementById('fromTemplateBtn').addEventListener('click', showTemplateDialog);
 
-    // Bind events (skip if drag just ended)
+    // Bind events: single-click selects, double-click navigates
     $timeline.querySelectorAll('.bar[data-job], .row-label[data-job]').forEach(el => {
       el.addEventListener('click', () => {
+        if (Date.now() - lastDragEnd < 300) return;
+        const jid = parseInt(el.dataset.job);
+        selectJob(jid);
+      });
+      el.addEventListener('dblclick', () => {
         if (Date.now() - lastDragEnd < 300) return;
         const jid = parseInt(el.dataset.job);
         renderProject(jid);
@@ -972,6 +978,38 @@
     if (!job.photos) job.photos = [];
     $bottomBar.style.display = 'flex';
 
+    // Restore structure if it was replaced by prompt
+    if (!document.getElementById('materialsList')) {
+      $bottomBar.innerHTML =
+        '<div class="bottom-panel materials-section" id="materialsSection">' +
+          '<div class="bottom-panel-header"><h3>Materials</h3></div>' +
+          '<div class="materials-list" id="materialsList"></div>' +
+          '<div class="materials-add">' +
+            '<input type="text" id="newMaterialInput" class="material-input" placeholder="Add material..." />' +
+            '<button id="addMaterialBtn" class="material-add-btn">+ Add</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="bottom-panel notes-section" id="notesSection">' +
+          '<div class="bottom-panel-header"><h3>Notes</h3></div>' +
+          '<div class="notes-list" id="notesList"></div>' +
+          '<div class="notes-add">' +
+            '<textarea id="newNoteInput" class="note-input" placeholder="Add a note..." rows="2"></textarea>' +
+            '<button id="addNoteBtn" class="note-add-btn">+ Add</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="bottom-panel photos-section" id="photosSection">' +
+          '<div class="bottom-panel-header"><h3>Photos</h3></div>' +
+          '<div class="photos-grid" id="photosGrid"></div>' +
+          '<label class="photo-upload-btn" id="photoUploadLabel">' +
+            '<input type="file" id="photoUploadInput" accept="image/*" multiple style="display:none;" />' +
+            '+ Add Photos' +
+          '</label>' +
+        '</div>';
+    }
+
+    var matList = document.getElementById('materialsList');
+    var photGrid = document.getElementById('photosGrid');
+
     let html = '';
     for (let mi = 0; mi < job.materials.length; mi++) {
       const mat = job.materials[mi];
@@ -981,7 +1019,7 @@
       html += '<button class="material-delete" data-mi="' + mi + '">×</button>';
       html += '</div>';
     }
-    $materialsList.innerHTML = html;
+    matList.innerHTML = html;
 
     // Rebind events
     const matInput = document.getElementById('newMaterialInput');
@@ -1005,7 +1043,7 @@
       if (e.key === 'Enter') newAddBtn.click();
     });
 
-    $materialsList.querySelectorAll('.material-check').forEach(function(cb) {
+    matList.querySelectorAll('.material-check').forEach(function(cb) {
       cb.addEventListener('change', function() {
         const mi = parseInt(this.dataset.mi);
         job.materials[mi].done = this.checked;
@@ -1013,7 +1051,7 @@
         renderMaterials(job);
       });
     });
-    $materialsList.querySelectorAll('.material-delete').forEach(function(btn) {
+    matList.querySelectorAll('.material-delete').forEach(function(btn) {
       btn.addEventListener('click', function() {
         const mi = parseInt(this.dataset.mi);
         job.materials.splice(mi, 1);
@@ -1079,7 +1117,7 @@
       photosHtml += '<button class="photo-remove" data-pi="' + pi + '">×</button>';
       photosHtml += '</div>';
     }
-    $photosGrid.innerHTML = photosHtml;
+    photGrid.innerHTML = photosHtml;
 
     // Photo upload — fresh input each render to avoid stale refs
     var uploadLabel = document.getElementById('photoUploadLabel');
@@ -1117,14 +1155,14 @@
     }
 
     // Photo lightbox
-    $photosGrid.querySelectorAll('.photo-thumb').forEach(function(img) {
+    photGrid.querySelectorAll('.photo-thumb').forEach(function(img) {
       img.addEventListener('click', function() {
         openLightbox(this.src);
       });
     });
 
     // Photo remove
-    $photosGrid.querySelectorAll('.photo-remove').forEach(function(btn) {
+    photGrid.querySelectorAll('.photo-remove').forEach(function(btn) {
       btn.addEventListener('click', function() {
         const pi = parseInt(this.dataset.pi);
         job.photos.splice(pi, 1);
@@ -1356,14 +1394,186 @@
     });
   }
 
+  // ── Select job (for bottom bar on Daily/Timeline) ──
+  function selectJob(jobId) {
+    selectedJobId = jobId;
+    // Highlight selected bar
+    $timeline.querySelectorAll('.bar[data-job]').forEach(function(b) {
+      b.classList.toggle('selected-bar', parseInt(b.dataset.job) === jobId);
+    });
+    var job = jobs.find(function(j) { return j.id === jobId; });
+    if (job) renderMaterials(job);
+  }
+
+  // ── Bottom bar prompt (no project selected) ──
+  function renderBottomBarPrompt() {
+    $bottomBar.style.display = 'flex';
+    $bottomBar.innerHTML = '<div class="bottom-bar-prompt">Click a project to see Materials, Notes & Photos</div>';
+  }
+
+  // ── Render Level 0: Daily ──
+  function renderDaily(existingRange, doScroll) {
+    currentLevel = 0;
+    currentJobId = null;
+    currentTaskIndex = null;
+    selectedJobId = null;
+    $detailPanel.classList.remove('visible');
+    renderBottomBarPrompt();
+
+    // Stats (same as timeline)
+    var active = jobs.filter(function(j) { return j.status === 'active'; }).length;
+    var scheduled = jobs.filter(function(j) { return j.status === 'scheduled'; }).length;
+    var completed = jobs.filter(function(j) { return j.status === 'completed'; }).length;
+    $statsBar.innerHTML =
+      '<div class="stat"><strong>' + active + '</strong> Active</div>' +
+      '<div class="stat"><strong>' + scheduled + '</strong> Scheduled</div>' +
+      '<div class="stat"><strong>' + completed + '</strong> Completed</div>' +
+      '<div class="stat"><strong>' + jobs.length + '</strong> Total Jobs</div>';
+
+    updateToggle();
+
+    var range;
+    if (existingRange) {
+      range = existingRange;
+    } else {
+      detachInfiniteScroll();
+      var rangeStart = getMonday(addDays(today, -14));
+      var totalDays = 30;
+      range = { rangeStart: rangeStart, rangeEnd: addDays(rangeStart, totalDays), totalDays: totalDays };
+    }
+    infiniteState = range;
+
+    var dayWidth = 48;
+    var headerResult = buildHeaderDaily(range, dayWidth);
+    // Override sidebar header to say "Projects"
+    var headerHtml = headerResult.html.replace('">Tasks</', '">Projects</');
+    var trackWidth = headerResult.trackWidth;
+
+    // Body rows
+    var sorted = jobs.slice().sort(function(a, b) { return parseDate(a.startDate) - parseDate(b.startDate); });
+    var bodyHtml = '<div class="timeline-body" style="position:relative">';
+
+    // Grid lines
+    for (var gi = 0; gi <= range.totalDays; gi++) {
+      var gDay = addDays(range.rangeStart, gi);
+      var isWeekend = gDay.getDay() === 0 || gDay.getDay() === 6;
+      var isMonthStart = gDay.getDate() === 1;
+      var x = gi * dayWidth + getSidebarW();
+      if (isWeekend) {
+        bodyHtml += '<div class="grid-line weekend-bg" style="left:' + x + 'px;width:' + dayWidth + 'px"></div>';
+      }
+      var gcls = 'grid-line';
+      if (isMonthStart) gcls += ' grid-month';
+      bodyHtml += '<div class="' + gcls + '" style="left:' + x + 'px"></div>';
+    }
+
+    buildMonthBoundaries(range, dayWidth);
+
+    // Today line
+    var tx = daysBetween(range.rangeStart, today) * dayWidth + getSidebarW();
+    bodyHtml += '<div class="today-line" style="left:' + tx + 'px"></div>';
+
+    for (var i = 0; i < sorted.length; i++) {
+      var job = sorted[i];
+      var jobColor = JOB_COLORS[job.id % JOB_COLORS.length];
+      var start = parseDate(job.startDate);
+      var end = parseDate(job.endDate);
+      var leftDays = daysBetween(range.rangeStart, start);
+      var widthDays = daysBetween(start, end) + 1;
+      var pct = jobProgress(job);
+      var barClass = job.status === 'completed' ? ' completed-bar' : '';
+
+      bodyHtml += '<div class="timeline-row">';
+      bodyHtml += '<div class="row-label" data-job="' + job.id + '">';
+      bodyHtml += '<span class="status-dot ' + job.status + '"></span>';
+      bodyHtml += '<span class="job-name stacked"><span class="line1">' + shortName(job.customer) + '</span><span class="line2">' + job.type + '</span></span>';
+      bodyHtml += '</div>';
+      bodyHtml += '<div class="row-track">';
+      bodyHtml += '<div class="bar' + barClass + '" data-job="' + job.id + '" data-type="job" style="left:' + (leftDays * dayWidth) + 'px;width:' + Math.max(widthDays * dayWidth - 2, 24) + 'px;background:' + jobColor + '">';
+      bodyHtml += weekendOverlaysHtml(start, end, dayWidth);
+      bodyHtml += '<div class="drag-handle drag-handle-left" data-side="left"></div>';
+      bodyHtml += '<span class="bar-label">' + job.customer + ' (' + pct + '%)</span>';
+      bodyHtml += '<div class="drag-handle drag-handle-right" data-side="right"></div>';
+      bodyHtml += '</div>';
+      bodyHtml += '</div></div>';
+    }
+
+    // Add Project row
+    bodyHtml += '<div class="timeline-row add-project-row">';
+    bodyHtml += '<div class="row-label add-project-btn" id="addProjectBtn">';
+    bodyHtml += '<span class="add-icon">+</span>';
+    bodyHtml += '<span class="job-name">Add Project</span>';
+    bodyHtml += '</div>';
+    bodyHtml += '<div class="row-track" style="display:flex;align-items:center;padding-left:12px;">';
+    bodyHtml += '<span class="add-from-template-btn" id="fromTemplateBtn">or from template</span>';
+    bodyHtml += '</div></div>';
+
+    bodyHtml += '</div>';
+
+    $timeline.innerHTML = headerHtml + bodyHtml;
+    $timeline.style.width = (trackWidth + getSidebarW()) + 'px';
+
+    if (!existingRange) {
+      $timeline.classList.add('view-enter');
+      setTimeout(function() { $timeline.classList.remove('view-enter'); }, 300);
+    }
+
+    document.getElementById('addProjectBtn').addEventListener('click', addProject);
+    document.getElementById('fromTemplateBtn').addEventListener('click', showTemplateDialog);
+
+    // Bind: single-click selects, double-click navigates
+    $timeline.querySelectorAll('.bar[data-job], .row-label[data-job]').forEach(function(el) {
+      el.addEventListener('click', function() {
+        if (Date.now() - lastDragEnd < 300) return;
+        var jid = parseInt(el.dataset.job);
+        selectJob(jid);
+      });
+      el.addEventListener('dblclick', function() {
+        if (Date.now() - lastDragEnd < 300) return;
+        var jid = parseInt(el.dataset.job);
+        renderProject(jid);
+      });
+    });
+
+    // Tooltips
+    $timeline.querySelectorAll('.bar[data-job]').forEach(function(el) {
+      var job = jobs.find(function(j) { return j.id === parseInt(el.dataset.job); });
+      el.addEventListener('mouseenter', function(e) {
+        var pct = jobProgress(job);
+        showTooltip(e,
+          '<div class="tooltip-title">' + job.customer + ' — ' + job.type + '</div>' +
+          '<div class="tooltip-row"><strong>Start:</strong> ' + formatDate(parseDate(job.startDate)) + '</div>' +
+          '<div class="tooltip-row"><strong>End:</strong> ' + formatDate(parseDate(job.endDate)) + '</div>' +
+          '<div class="tooltip-row"><strong>Progress:</strong> ' + pct + '%</div>' +
+          '<div class="tooltip-row"><strong>Status:</strong> ' + job.status + '</div>'
+        );
+      });
+      el.addEventListener('mouseleave', hideTooltip);
+    });
+
+    if (!existingRange) {
+      attachInfiniteScroll(function(r) { renderDaily(r, false); }, dayWidth);
+    }
+
+    if (doScroll !== false && !existingRange) {
+      scrollToToday(range, dayWidth, getSidebarW());
+    }
+    setTimeout(updateFloatingMonth, 50);
+  }
+
   // ── Toggle buttons ──
   function updateToggle() {
+    $btnDaily.classList.toggle('active', currentLevel === 0);
     $btnTimeline.classList.toggle('active', currentLevel === 1);
     $btnProjects.classList.toggle('active', currentLevel === 2);
   }
 
   function showTimeline() {
     renderPortfolio();
+  }
+
+  function showDaily() {
+    renderDaily();
   }
 
   function showProjects() {
@@ -1503,8 +1713,7 @@
     bar.classList.add('dragging');
     dragStartTime = Date.now();
 
-    const isLevel1 = currentLevel === 1;
-    const dayW = isLevel1 ? 14 : 48;
+    const dayW = currentLevel === 1 ? 14 : 48;
 
     dragState = {
       bar: bar,
@@ -1591,7 +1800,8 @@
             job.endDate = dateToString(addDays(parseDate(job.endDate), dayDelta));
           }
           saveState();
-          renderPortfolio();
+          if (currentLevel === 0) renderDaily();
+          else renderPortfolio();
         }
       } else if (ds.type === 'task') {
         const job = jobs.find(j => j.id === ds.jobId);
@@ -1645,8 +1855,7 @@
     bar.classList.add('dragging');
     dragStartTime = Date.now();
 
-    const isLevel1 = currentLevel === 1;
-    const dayW = isLevel1 ? 14 : 48;
+    const dayW = currentLevel === 1 ? 14 : 48;
 
     dragState = {
       bar: bar,
@@ -1716,7 +1925,8 @@
             job.endDate = dateToString(addDays(parseDate(job.endDate), dayDelta));
           }
           saveState();
-          renderPortfolio();
+          if (currentLevel === 0) renderDaily();
+          else renderPortfolio();
         }
       } else if (dsT.type === 'task') {
         const job = jobs.find(j => j.id === dsT.jobId);
@@ -1780,7 +1990,7 @@
   let createDrag = null;
 
   document.addEventListener('mousedown', function(e) {
-    if (currentLevel !== 1 && currentLevel !== 2) return;
+    if (currentLevel !== 0 && currentLevel !== 1 && currentLevel !== 2) return;
     if (currentLevel === 2 && !currentJobId) return;
     if (dragState) return; // existing bar drag in progress
     // Only trigger on row-track or timeline-body (empty area), not on bars or sidebar
@@ -1792,7 +2002,7 @@
     if (e.target.closest('.add-task-row')) return;
 
     e.preventDefault();
-    var dayWidth = currentLevel === 1 ? 14 : 48;
+    var dayWidth = (currentLevel === 1) ? 14 : 48;
     var sidebarW = getSidebarW();
     var containerRect = $timelineContainer.getBoundingClientRect();
     var scrollLeft = $timelineContainer.scrollLeft;
@@ -1863,7 +2073,7 @@
     var dragStart = addDays(infiniteState.rangeStart, minD);
     var dragEnd = addDays(infiniteState.rangeStart, maxD);
 
-    if (currentLevel === 1) {
+    if (currentLevel === 0 || currentLevel === 1) {
       // Create a new project
       var customerName = prompt('Customer name:', 'New Project');
       if (!customerName || !customerName.trim()) return;
@@ -1882,7 +2092,8 @@
 
       saveState();
       saveScrollPos();
-      showTimeline();
+      if (currentLevel === 0) showDaily();
+      else showTimeline();
     } else {
       // Create a new task (Level 2)
       var job = jobs.find(function(j) { return j.id === currentJobId; });
@@ -1914,6 +2125,7 @@
 
   // ── Public API ──
   window.app = {
+    showDaily,
     showTimeline,
     showProjects,
     updateTaskStatus,

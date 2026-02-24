@@ -13,8 +13,9 @@
       <div class="header-left"></div>
       <div class="logo"><span class="logo-brand">Bath Foundry</span> <span class="logo-sub">Schedule</span></div>
       <div class="header-right">
-        <button class="view-toggle" id="btnProjects" onclick="app.showProjects()">Projects</button>
+        <button class="view-toggle" id="btnDaily" onclick="app.showDaily()">Daily</button>
         <button class="view-toggle active" id="btnTimeline" onclick="app.showTimeline()">Timeline</button>
+        <button class="view-toggle" id="btnProjects" onclick="app.showProjects()">Projects</button>
       </div>
     </div>
 
@@ -22,7 +23,7 @@
     <div class="stats-bar" id="statsBar"></div>
 
     <!-- Main content area -->
-    <div id="mainArea" style="display:flex;overflow:hidden;">
+    <div id="mainArea" style="display:flex;">
       <div class="timeline-container" id="timelineContainer">
         <div class="floating-month" id="floatingMonth"></div>
         <div class="timeline" id="timeline"></div>
@@ -34,7 +35,7 @@
     </div>
 
     <!-- Bottom bar (materials + notes + photos, only visible at task level) -->
-    <div class="bottom-bar" id="bottomBar" style="display:none;">
+    <div class="bottom-bar" id="bottomBar">
       <div class="bottom-panel materials-section" id="materialsSection">
         <div class="bottom-panel-header"><h3>Materials</h3></div>
         <div class="materials-list" id="materialsList"></div>

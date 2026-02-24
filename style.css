@@ -103,6 +103,10 @@ html, body {
   border-right: none;
 }
 
+.view-toggle:nth-child(2) {
+  border-right: none;
+}
+
 .view-toggle:last-child {
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
@@ -176,10 +180,9 @@ html, body {
   pointer-events: none;
 }
 
-/* ── Main Area — fixed height so bottom bar doesn't compress it ── */
+/* ── Main Area — natural height, page scrolls if needed ── */
 #mainArea {
-  height: calc(100vh - 100px);
-  min-height: 400px;
+  min-height: 300px;
   flex-shrink: 0;
 }
 
@@ -444,6 +447,12 @@ html, body {
   filter: brightness(1.2);
   transform: translateY(-1px);
   z-index: 10;
+}
+
+.bar.selected-bar {
+  box-shadow: 0 0 0 2px #61afef, 0 0 12px rgba(97,175,239,0.5);
+  filter: brightness(1.15);
+  z-index: 11;
 }
 
 .bar.completed-bar {
@@ -1590,4 +1599,16 @@ html, body {
 
 .lightbox-close:hover {
   background: rgba(255,255,255,0.2);
+}
+
+/* ── Bottom bar prompt ── */
+.bottom-bar-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 24px;
+  color: var(--text-dim);
+  font-size: 14px;
+  font-style: italic;
 }
