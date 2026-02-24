@@ -6,6 +6,30 @@
 
   // ── State ──
   let jobs = JSON.parse(JSON.stringify(SAMPLE_JOBS)); // deep clone
+
+  // ── Standalone Tasks pseudo-project (always present) ──
+  const STANDALONE_ID = -1;
+  function ensureStandaloneProject() {
+    if (!jobs.find(function(j) { return j.id === STANDALONE_ID; })) {
+      jobs.push({
+        id: STANDALONE_ID,
+        customer: "Standalone Tasks",
+        type: "Individual",
+        status: "scheduled",
+        startDate: dateToStringStatic(today),
+        endDate: dateToStringStatic(today),
+        tasks: []
+      });
+    }
+  }
+  // Simple date-to-string that doesn't depend on helpers defined later
+  function dateToStringStatic(d) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var dd = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + dd;
+  }
+  ensureStandaloneProject();
   let currentLevel = 1;  // 1=timeline, 2=project, 3=task
   let currentJobId = null;
   let currentTaskIndex = null;
@@ -15,6 +39,7 @@
   if (saved) {
     try { jobs = JSON.parse(saved); } catch(e) { /* use defaults */ }
   }
+  ensureStandaloneProject();
 
   function saveState() {
     try {
@@ -599,7 +624,8 @@
     const { html: headerHtml, trackWidth } = buildHeader(range, dayWidth);
 
     // Body rows
-    const sorted = [...jobs].sort((a,b) => parseDate(a.startDate) - parseDate(b.startDate));
+    const sorted = [...jobs].filter(function(j) { return j.id !== STANDALONE_ID; }).sort((a,b) => parseDate(a.startDate) - parseDate(b.startDate));
+    const standaloneJob = jobs.find(function(j) { return j.id === STANDALONE_ID; });
     let bodyHtml = '<div class="timeline-body" style="position:relative">';
 
     // Grid lines (every day, stronger on Mondays, shaded weekends, month boundaries)
@@ -650,6 +676,33 @@
       bodyHtml += '</div></div>';
     }
 
+    // Standalone tasks as individual rows on Level 1
+    if (standaloneJob && standaloneJob.tasks.length > 0) {
+      for (var si = 0; si < standaloneJob.tasks.length; si++) {
+        var sTask = standaloneJob.tasks[si];
+        var sStart = parseDate(sTask.start);
+        var sEnd = parseDate(sTask.end);
+        var sLeftDays = daysBetween(range.rangeStart, sStart);
+        var sWidthDays = daysBetween(sStart, sEnd) + 1;
+        var sColor = PHASE_COLORS[sTask.color] || PHASE_COLORS.other;
+        var sBarClass = sTask.status === 'complete' ? ' completed-bar' : '';
+
+        bodyHtml += '<div class="timeline-row">';
+        bodyHtml += '<div class="row-label" data-standalone-task="' + si + '">';
+        bodyHtml += '<span class="status-dot ' + sTask.status + '"></span>';
+        bodyHtml += '<span class="job-name stacked"><span class="line1">' + sTask.name + '</span><span class="line2">' + (sTask.owner || 'Standalone') + '</span></span>';
+        bodyHtml += '</div>';
+        bodyHtml += '<div class="row-track">';
+        bodyHtml += '<div class="bar' + sBarClass + '" data-standalone-task="' + si + '" data-type="standalone" style="left:' + (sLeftDays * dayWidth) + 'px;width:' + Math.max(sWidthDays * dayWidth - 2, 14) + 'px;background:' + sColor + '">';
+        bodyHtml += weekendOverlaysHtml(sStart, sEnd, dayWidth);
+        bodyHtml += '<div class="drag-handle drag-handle-left" data-side="left"></div>';
+        bodyHtml += '<span class="bar-label">' + sTask.name + '</span>';
+        bodyHtml += '<div class="drag-handle drag-handle-right" data-side="right"></div>';
+        bodyHtml += '</div>';
+        bodyHtml += '</div></div>';
+      }
+    }
+
     // Add Project row
     bodyHtml += '<div class="timeline-row add-project-row">';
     bodyHtml += '<div class="row-label add-project-btn" id="addProjectBtn">';
@@ -673,6 +726,36 @@
     // Add Project click
     document.getElementById('addProjectBtn').addEventListener('click', addProject);
     document.getElementById('fromTemplateBtn').addEventListener('click', showTemplateDialog);
+
+    // Standalone task clicks → open standalone project at task level
+    $timeline.querySelectorAll('.bar[data-standalone-task], .row-label[data-standalone-task]').forEach(function(el) {
+      el.addEventListener('click', function() {
+        if (Date.now() - lastDragEnd < 300) return;
+        var ti = parseInt(el.dataset.standaloneTask);
+        renderProject(STANDALONE_ID);
+        setTimeout(function() { renderTaskDetail(STANDALONE_ID, ti); }, 50);
+      });
+    });
+
+    // Standalone task tooltips
+    $timeline.querySelectorAll('.bar[data-standalone-task]').forEach(function(el) {
+      var sIdx = parseInt(el.dataset.standaloneTask);
+      var sJob = jobs.find(function(j) { return j.id === STANDALONE_ID; });
+      if (sJob && sJob.tasks[sIdx]) {
+        var sTask = sJob.tasks[sIdx];
+        el.addEventListener('mouseenter', function(e) {
+          var dur = daysBetween(parseDate(sTask.start), parseDate(sTask.end)) + 1;
+          showTooltip(e,
+            '<div class="tooltip-title">' + sTask.name + '</div>' +
+            '<div class="tooltip-row"><strong>Owner:</strong> ' + (sTask.owner || 'None') + '</div>' +
+            '<div class="tooltip-row"><strong>Start:</strong> ' + formatDate(parseDate(sTask.start)) + '</div>' +
+            '<div class="tooltip-row"><strong>End:</strong> ' + formatDate(parseDate(sTask.end)) + '</div>' +
+            '<div class="tooltip-row"><strong>Duration:</strong> ' + dur + ' day' + (dur > 1 ? 's' : '') + '</div>'
+          );
+        });
+        el.addEventListener('mouseleave', hideTooltip);
+      }
+    });
 
     // Bind events (skip if drag just ended)
     $timeline.querySelectorAll('.bar[data-job], .row-label[data-job]').forEach(el => {
@@ -704,8 +787,10 @@
       attachInfiniteScroll(function(r) { renderPortfolio(r, false); }, dayWidth);
     }
 
-    // Scroll to today on first render
-    if (doScroll !== false && !existingRange) {
+    // Scroll: restore saved position or scroll to today on first render
+    if (savedScrollLeft !== null) {
+      restoreScrollPos();
+    } else if (doScroll !== false && !existingRange) {
       scrollToToday(range, dayWidth, getSidebarW());
     }
     setTimeout(updateFloatingMonth, 50);
@@ -1150,6 +1235,10 @@
 
   // ── Delete a project ──
   function deleteProject(jobId) {
+    if (jobId === STANDALONE_ID) {
+      alert('Cannot delete the Standalone Tasks project.');
+      return;
+    }
     showConfirmDialog('Delete this entire project?', function(confirmed) {
       if (!confirmed) return;
       jobs = jobs.filter(function(j) { return j.id !== jobId; });
@@ -1370,8 +1459,8 @@
     if (currentJobId) {
       renderProject(currentJobId);
     } else if (jobs.length > 0) {
-      // Default to first active or first job
-      const active = jobs.find(j => j.status === 'active') || jobs[0];
+      // Default to first active or first non-standalone job, or standalone
+      const active = jobs.find(j => j.status === 'active' && j.id !== STANDALONE_ID) || jobs.find(j => j.id !== STANDALONE_ID) || jobs[0];
       renderProject(active.id);
     }
   }
@@ -1519,6 +1608,9 @@
 
     if (type === 'job') {
       dragState.jobId = parseInt(bar.dataset.job);
+    } else if (type === 'standalone') {
+      dragState.jobId = STANDALONE_ID;
+      dragState.taskIndex = parseInt(bar.dataset.standaloneTask);
     } else {
       dragState.jobId = parseInt(bar.dataset.job);
       dragState.taskIndex = parseInt(bar.dataset.task);
@@ -1590,6 +1682,22 @@
           } else {
             job.endDate = dateToString(addDays(parseDate(job.endDate), dayDelta));
           }
+          saveState();
+          renderPortfolio();
+        }
+      } else if (ds.type === 'standalone') {
+        var sJob = jobs.find(function(j) { return j.id === STANDALONE_ID; });
+        if (sJob && sJob.tasks[ds.taskIndex]) {
+          var sTask = sJob.tasks[ds.taskIndex];
+          if (ds.mode === 'move') {
+            sTask.start = dateToString(addDays(parseDate(sTask.start), dayDelta));
+            sTask.end = dateToString(addDays(parseDate(sTask.end), dayDelta));
+          } else if (ds.mode === 'left') {
+            sTask.start = dateToString(addDays(parseDate(sTask.start), dayDelta));
+          } else {
+            sTask.end = dateToString(addDays(parseDate(sTask.end), dayDelta));
+          }
+          autoStaggerTasks(sJob);
           saveState();
           renderPortfolio();
         }
@@ -1780,7 +1888,8 @@
   let createDrag = null;
 
   document.addEventListener('mousedown', function(e) {
-    if (currentLevel !== 2 || !currentJobId) return;
+    if (currentLevel !== 1 && currentLevel !== 2) return;
+    if (currentLevel === 2 && !currentJobId) return;
     if (dragState) return; // existing bar drag in progress
     // Only trigger on row-track (empty area), not on bars or sidebar
     var track = e.target.closest('.row-track');
@@ -1788,7 +1897,7 @@
     if (e.target.closest('.bar')) return;
 
     e.preventDefault();
-    var dayWidth = 48;
+    var dayWidth = currentLevel === 1 ? 14 : 48;
     var sidebarW = getSidebarW();
     var containerRect = $timelineContainer.getBoundingClientRect();
     var scrollLeft = $timelineContainer.scrollLeft;
@@ -1819,7 +1928,8 @@
       currentDay: startDay,
       dayWidth: dayWidth,
       sidebarW: sidebarW,
-      containerRect: containerRect
+      containerRect: containerRect,
+      level: currentLevel
     };
   });
 
@@ -1850,32 +1960,85 @@
     var maxD = Math.max(cd.startDay, cd.currentDay);
 
     // Convert day offsets to actual dates
-    var taskStart = addDays(infiniteState.rangeStart, minD);
-    var taskEnd = addDays(infiniteState.rangeStart, maxD);
+    var dragStart = addDays(infiniteState.rangeStart, minD);
+    var dragEnd = addDays(infiniteState.rangeStart, maxD);
 
-    var job = jobs.find(function(j) { return j.id === currentJobId; });
-    if (!job) return;
+    if (cd.level === 1) {
+      // Level 1: Create a new project spanning the dragged range
+      var custName = prompt('Customer Name:');
+      if (!custName || !custName.trim()) return;
+      var jobType = prompt('Job Type:', 'Master Bath Remodel');
+      if (!jobType || !jobType.trim()) return;
 
-    var taskName = prompt('Task name:', 'New Task');
-    if (!taskName || !taskName.trim()) return;
+      var newId = Math.max(0, ...jobs.map(function(j) { return j.id; })) + 1;
+      var totalDragDays = daysBetween(dragStart, dragEnd);
 
-    var usedColors = job.tasks.map(function(t) { return t.color; });
-    var color = nextColor(usedColors);
+      // Scale default tasks to fit the dragged range
+      var defaultTasks = [
+        { name: 'Demo', pct: [0, 0.07] },
+        { name: 'Plumbing Rough-In', pct: [0.08, 0.18] },
+        { name: 'Backer Board & Waterproofing', pct: [0.22, 0.33] },
+        { name: 'Tile Work', pct: [0.35, 0.70] },
+        { name: 'Fixture Install', pct: [0.74, 0.81] },
+        { name: 'Paint & Finish', pct: [0.82, 0.89] },
+        { name: 'Final Punch & Cleanup', pct: [0.92, 1.0] }
+      ];
 
-    job.tasks.push({
-      name: taskName.trim(),
-      owner: '',
-      start: dateToString(taskStart),
-      end: dateToString(taskEnd),
-      status: 'scheduled',
-      color: color,
-      notes: '',
-      notesList: []
-    });
+      var phaseKeys = Object.keys(PHASE_COLORS);
+      var tasks = defaultTasks.map(function(t, i) {
+        var tStartDay = Math.round(t.pct[0] * totalDragDays);
+        var tEndDay = Math.round(t.pct[1] * totalDragDays);
+        if (tEndDay < tStartDay) tEndDay = tStartDay;
+        return {
+          name: t.name,
+          owner: '',
+          start: dateToString(addDays(dragStart, tStartDay)),
+          end: dateToString(addDays(dragStart, tEndDay)),
+          status: 'scheduled',
+          color: phaseKeys[i] || 'other',
+          notes: '',
+          notesList: []
+        };
+      });
 
-    saveScrollPos();
-    autoStaggerTasks(job);
-    renderProject(currentJobId);
+      jobs.push({
+        id: newId,
+        customer: custName.trim(),
+        type: jobType.trim(),
+        status: 'scheduled',
+        startDate: dateToString(dragStart),
+        endDate: dateToString(dragEnd),
+        tasks: tasks
+      });
+      saveState();
+      saveScrollPos();
+      renderPortfolio();
+    } else {
+      // Level 2: Create a task in the current project
+      var job = jobs.find(function(j) { return j.id === currentJobId; });
+      if (!job) return;
+
+      var taskName = prompt('Task name:', 'New Task');
+      if (!taskName || !taskName.trim()) return;
+
+      var usedColors = job.tasks.map(function(t) { return t.color; });
+      var color = nextColor(usedColors);
+
+      job.tasks.push({
+        name: taskName.trim(),
+        owner: '',
+        start: dateToString(dragStart),
+        end: dateToString(dragEnd),
+        status: 'scheduled',
+        color: color,
+        notes: '',
+        notesList: []
+      });
+
+      saveScrollPos();
+      autoStaggerTasks(job);
+      renderProject(currentJobId);
+    }
   });
 
   // ── Public API ──
