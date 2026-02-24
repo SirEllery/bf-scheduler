@@ -1776,19 +1776,23 @@
     });
   }
 
-  // ── Drag-to-create tasks on empty timeline area (Level 2 only) ──
+  // ── Drag-to-create on empty timeline area (Level 1: projects, Level 2: tasks) ──
   let createDrag = null;
 
   document.addEventListener('mousedown', function(e) {
-    if (currentLevel !== 2 || !currentJobId) return;
+    if (currentLevel !== 1 && currentLevel !== 2) return;
+    if (currentLevel === 2 && !currentJobId) return;
     if (dragState) return; // existing bar drag in progress
-    // Only trigger on row-track (empty area), not on bars or sidebar
-    var track = e.target.closest('.row-track');
+    // Only trigger on row-track or timeline-body (empty area), not on bars or sidebar
+    var track = e.target.closest('.row-track') || (currentLevel === 1 ? e.target.closest('.timeline-body') : null);
     if (!track) return;
     if (e.target.closest('.bar')) return;
+    if (e.target.closest('.row-label')) return;
+    if (e.target.closest('.add-project-row')) return;
+    if (e.target.closest('.add-task-row')) return;
 
     e.preventDefault();
-    var dayWidth = 48;
+    var dayWidth = currentLevel === 1 ? 14 : 48;
     var sidebarW = getSidebarW();
     var containerRect = $timelineContainer.getBoundingClientRect();
     var scrollLeft = $timelineContainer.scrollLeft;
@@ -1849,33 +1853,63 @@
     var minD = Math.min(cd.startDay, cd.currentDay);
     var maxD = Math.max(cd.startDay, cd.currentDay);
 
+    // Need at least 1 day dragged
+    if (minD === maxD && Math.abs(cd.currentDay - cd.startDay) === 0) {
+      // Single click, not a drag — ignore
+      return;
+    }
+
     // Convert day offsets to actual dates
-    var taskStart = addDays(infiniteState.rangeStart, minD);
-    var taskEnd = addDays(infiniteState.rangeStart, maxD);
+    var dragStart = addDays(infiniteState.rangeStart, minD);
+    var dragEnd = addDays(infiniteState.rangeStart, maxD);
 
-    var job = jobs.find(function(j) { return j.id === currentJobId; });
-    if (!job) return;
+    if (currentLevel === 1) {
+      // Create a new project
+      var customerName = prompt('Customer name:', 'New Project');
+      if (!customerName || !customerName.trim()) return;
 
-    var taskName = prompt('Task name:', 'New Task');
-    if (!taskName || !taskName.trim()) return;
+      var newId = jobs.length > 0 ? Math.max.apply(null, jobs.map(function(j) { return j.id; })) + 1 : 1;
+      jobs.push({
+        id: newId,
+        customer: customerName.trim(),
+        type: 'Full Remodel',
+        status: 'scheduled',
+        startDate: dateToString(dragStart),
+        endDate: dateToString(dragEnd),
+        tasks: [],
+        photos: []
+      });
 
-    var usedColors = job.tasks.map(function(t) { return t.color; });
-    var color = nextColor(usedColors);
+      saveState();
+      saveScrollPos();
+      showTimeline();
+    } else {
+      // Create a new task (Level 2)
+      var job = jobs.find(function(j) { return j.id === currentJobId; });
+      if (!job) return;
 
-    job.tasks.push({
-      name: taskName.trim(),
-      owner: '',
-      start: dateToString(taskStart),
-      end: dateToString(taskEnd),
-      status: 'scheduled',
-      color: color,
-      notes: '',
-      notesList: []
-    });
+      var taskName = prompt('Task name:', 'New Task');
+      if (!taskName || !taskName.trim()) return;
 
-    saveScrollPos();
-    autoStaggerTasks(job);
-    renderProject(currentJobId);
+      var usedColors = job.tasks.map(function(t) { return t.color; });
+      var color = nextColor(usedColors);
+
+      job.tasks.push({
+        name: taskName.trim(),
+        owner: '',
+        start: dateToString(dragStart),
+        end: dateToString(dragEnd),
+        status: 'scheduled',
+        color: color,
+        notes: '',
+        notesList: []
+      });
+
+      saveState();
+      saveScrollPos();
+      autoStaggerTasks(job);
+      renderProject(currentJobId);
+    }
   });
 
   // ── Public API ──
