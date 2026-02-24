@@ -1891,10 +1891,16 @@
     if (currentLevel !== 1 && currentLevel !== 2) return;
     if (currentLevel === 2 && !currentJobId) return;
     if (dragState) return; // existing bar drag in progress
-    // Only trigger on row-track (empty area), not on bars or sidebar
-    var track = e.target.closest('.row-track');
-    if (!track) return;
+    // Skip if clicking on a bar, sidebar label, button, or add-row
     if (e.target.closest('.bar')) return;
+    if (e.target.closest('.row-label')) return;
+    if (e.target.closest('.add-project-row')) return;
+    if (e.target.closest('.add-task-row')) return;
+    if (e.target.closest('button')) return;
+    if (e.target.closest('.detail-panel')) return;
+    // Allow clicking on row-track OR timeline-body (for Level 1 where clicks may land on body/grid)
+    var track = e.target.closest('.row-track') || e.target.closest('.timeline-body');
+    if (!track) return;
 
     e.preventDefault();
     var dayWidth = currentLevel === 1 ? 14 : 48;
