@@ -372,7 +372,7 @@
     }
 
     var html = '<div class="timeline-header">';
-    html += '<div class="timeline-sidebar-header">Projects</div>';
+    html += '<div class="timeline-sidebar-header">Monthly</div>';
     html += '<div class="timeline-dates" style="width:' + trackWidth + 'px">';
 
     // Layer 1: Month row (with absolute-positioned dividers for alignment)
@@ -765,7 +765,7 @@
     var dayWidth = Math.floor((containerWidth - sidebarW) / 30);
     if (dayWidth < 14) dayWidth = 14;
 
-    var headerResult = buildHeaderDaily(range, dayWidth, 'Projects');
+    var headerResult = buildHeaderDaily(range, dayWidth, 'Weekly');
     var headerHtml = headerResult.html;
     var trackWidth = headerResult.trackWidth;
 
