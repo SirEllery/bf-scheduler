@@ -366,7 +366,8 @@
   }
 
   // ── Build daily header (for task-level view) ──
-  function buildHeaderDaily(range, dayWidth) {
+  function buildHeaderDaily(range, dayWidth, sidebarLabel) {
+    sidebarLabel = sidebarLabel || 'Tasks';
     const { rangeStart, totalDays } = range;
     const trackWidth = totalDays * dayWidth;
 
@@ -395,7 +396,7 @@
     }
 
     let html = '<div class="timeline-header">';
-    html += '<div class="timeline-sidebar-header">Tasks</div>';
+    html += '<div class="timeline-sidebar-header">' + sidebarLabel + '</div>';
     html += '<div class="timeline-dates" style="width:' + trackWidth + 'px">';
 
     // Month row (with aligned dividers)
@@ -596,7 +597,11 @@
     }
     infiniteState = range;
 
-    const dayWidth = 14;
+    // Dynamic dayWidth to show ~90 days
+    var sidebarW_tl = getSidebarW();
+    var containerWidth_tl = $timelineContainer.clientWidth || window.innerWidth;
+    var dayWidth = Math.floor((containerWidth_tl - sidebarW_tl) / 90);
+    if (dayWidth < 4) dayWidth = 4;
     const { html: headerHtml, trackWidth } = buildHeader(range, dayWidth);
 
     // Body rows
@@ -675,12 +680,12 @@
     document.getElementById('addProjectBtn').addEventListener('click', addProject);
     document.getElementById('fromTemplateBtn').addEventListener('click', showTemplateDialog);
 
-    // Bind events: click navigates to project
+    // Bind events: click navigates to daily view for that project
     $timeline.querySelectorAll('.bar[data-job], .row-label[data-job]').forEach(el => {
       el.addEventListener('click', () => {
         if (Date.now() - lastDragEnd < 300) return;
         const jid = parseInt(el.dataset.job);
-        renderProject(jid);
+        renderDaily(jid);
       });
     });
 
@@ -712,210 +717,147 @@
     setTimeout(updateFloatingMonth, 50);
   }
 
-  // ── Render Level 2: Project (shows tasks) ──
+  // ── Render Level 2: Projects (shows project bars, 30-day visible window) ──
   function renderProject(jobId, existingRange, doScroll) {
     currentLevel = 2;
-    currentJobId = jobId;
+    currentJobId = null;
     currentTaskIndex = null;
     $detailPanel.classList.remove('visible');
-
-    const job = jobs.find(j => j.id === jobId);
-    if (!job) return renderPortfolio();
+    $bottomBar.style.display = 'none';
 
     // Stats
-    const done = job.tasks.filter(t => t.status === 'complete').length;
-    const inProg = job.tasks.filter(t => t.status === 'active').length;
-    const sched = job.tasks.filter(t => t.status === 'scheduled').length;
-    const totalDuration = daysBetween(parseDate(job.startDate), parseDate(job.endDate)) + 1;
-    const projectDisplayName = job.customer + ' — ' + job.type;
-
-    if (!existingRange) {
-      $statsBar.innerHTML =
-        '<div class="project-title"><span class="status-dot ' + job.status + '"></span><span class="project-name-text" id="projectNameText">' + projectDisplayName + '</span><button class="edit-name-btn" id="editNameBtn" title="Edit project name">✏️</button><button class="edit-name-btn" id="saveTemplateBtn" title="Save as Template">📋</button><button class="delete-project-btn" id="deleteProjectBtn" title="Delete project">🗑️</button></div>' +
-        '<div class="stat"><strong>' + done + '</strong> Complete</div>' +
-        '<div class="stat"><strong>' + inProg + '</strong> In Progress</div>' +
-        '<div class="stat"><strong>' + sched + '</strong> Scheduled</div>' +
-        '<div class="stat"><strong>' + totalDuration + '</strong> Days Total</div>';
-
-      // Delete project + Editable project name
-      setTimeout(function() {
-        const delProjBtn = document.getElementById('deleteProjectBtn');
-        if (delProjBtn) {
-          delProjBtn.addEventListener('click', function() { deleteProject(jobId); });
-        }
-        const tmplBtn = document.getElementById('saveTemplateBtn');
-        if (tmplBtn) {
-          tmplBtn.addEventListener('click', function() { saveAsTemplate(jobId); });
-        }
-        const editBtn = document.getElementById('editNameBtn');
-        if (editBtn) {
-          editBtn.addEventListener('click', function() {
-            const nameEl = document.getElementById('projectNameText');
-            const currentName = job.customer;
-            const currentType = job.type;
-            nameEl.innerHTML = '<input type="text" id="editCustomerInput" class="inline-edit" value="' + currentName.replace(/"/g, '&quot;') + '" placeholder="Customer name" /> — <input type="text" id="editTypeInput" class="inline-edit" value="' + currentType.replace(/"/g, '&quot;') + '" placeholder="Project type" /><button class="inline-save-btn" id="saveNameBtn">Save</button><button class="inline-cancel-btn" id="cancelNameBtn">Cancel</button>';
-            editBtn.style.display = 'none';
-            document.getElementById('editCustomerInput').focus();
-
-            document.getElementById('saveNameBtn').addEventListener('click', function() {
-              const newCustomer = document.getElementById('editCustomerInput').value.trim();
-              const newType = document.getElementById('editTypeInput').value.trim();
-              if (newCustomer) job.customer = newCustomer;
-              if (newType) job.type = newType;
-              saveState();
-              renderProject(jobId);
-            });
-
-            document.getElementById('cancelNameBtn').addEventListener('click', function() {
-              renderProject(jobId);
-            });
-
-            ['editCustomerInput', 'editTypeInput'].forEach(function(id) {
-              document.getElementById(id).addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') document.getElementById('saveNameBtn').click();
-                if (e.key === 'Escape') document.getElementById('cancelNameBtn').click();
-              });
-            });
-          });
-        }
-      }, 0);
-    }
+    var active = jobs.filter(function(j) { return j.status === 'active'; }).length;
+    var scheduled = jobs.filter(function(j) { return j.status === 'scheduled'; }).length;
+    var completed = jobs.filter(function(j) { return j.status === 'completed'; }).length;
+    $statsBar.innerHTML =
+      '<div class="stat"><strong>' + active + '</strong> Active</div>' +
+      '<div class="stat"><strong>' + scheduled + '</strong> Scheduled</div>' +
+      '<div class="stat"><strong>' + completed + '</strong> Completed</div>' +
+      '<div class="stat"><strong>' + jobs.length + '</strong> Total Jobs</div>';
 
     updateToggle();
 
-    // Range — start wide for infinite scroll
     var range;
     if (existingRange) {
       range = existingRange;
     } else {
       detachInfiniteScroll();
-      var start = parseDate(job.startDate);
-      var end = parseDate(job.endDate);
-      var projectDays = daysBetween(start, end);
-      // Pad generously: 30 days before, 60 days after (or more for long projects)
-      var padBefore = Math.max(30, projectDays);
-      var padAfter = Math.max(60, projectDays);
-      var rangeStart = getMonday(addDays(start, -padBefore));
-      var rangeEnd = addDays(end, padAfter);
-      var totalDays = daysBetween(rangeStart, rangeEnd);
-      range = { rangeStart: rangeStart, rangeEnd: rangeEnd, totalDays: totalDays };
+      var rangeStart = getMonday(addDays(today, -60));
+      var totalDays = 120;
+      range = { rangeStart: rangeStart, rangeEnd: addDays(rangeStart, totalDays), totalDays: totalDays };
     }
     infiniteState = range;
 
-    const dayWidth = 48;
+    // Dynamic dayWidth to show ~30 days
+    var sidebarW = getSidebarW();
+    var containerWidth = $timelineContainer.clientWidth || window.innerWidth;
+    var dayWidth = Math.floor((containerWidth - sidebarW) / 30);
+    if (dayWidth < 14) dayWidth = 14;
 
-    const { html: headerHtml, trackWidth } = buildHeaderDaily(range, dayWidth);
+    var headerResult = buildHeaderDaily(range, dayWidth, 'Projects');
+    var headerHtml = headerResult.html;
+    var trackWidth = headerResult.trackWidth;
 
-    let bodyHtml = '<div class="timeline-body" style="position:relative">';
+    var sorted = [...jobs].sort(function(a, b) { return parseDate(a.startDate) - parseDate(b.startDate); });
+    var bodyHtml = '<div class="timeline-body" style="position:relative">';
 
-    // Daily grid lines (with month boundaries)
-    for (let gi = 0; gi <= range.totalDays; gi++) {
-      const gDay = addDays(range.rangeStart, gi);
-      const isWeekend = gDay.getDay() === 0 || gDay.getDay() === 6;
-      const isMonthStart = gDay.getDate() === 1;
-      const x = gi * dayWidth + getSidebarW();
+    // Grid lines
+    for (var gi = 0; gi < range.totalDays; gi++) {
+      var gDay = addDays(range.rangeStart, gi);
+      var x = gi * dayWidth + sidebarW;
+      var isWeekend = gDay.getDay() === 0 || gDay.getDay() === 6;
+      var isMonthStart = gDay.getDate() === 1;
       if (isWeekend) {
         bodyHtml += '<div class="grid-line weekend-bg" style="left:' + x + 'px;width:' + dayWidth + 'px"></div>';
       }
-      var gcls = 'grid-line';
-      if (isMonthStart) gcls += ' grid-month';
-      bodyHtml += '<div class="' + gcls + '" style="left:' + x + 'px"></div>';
+      var gridCls = 'grid-line';
+      if (isMonthStart) gridCls += ' grid-month';
+      bodyHtml += '<div class="' + gridCls + '" style="left:' + x + 'px"></div>';
     }
 
-    // Build month boundaries for floating label
     buildMonthBoundaries(range, dayWidth);
 
-    // Today line (always)
-    const tx = daysBetween(range.rangeStart, today) * dayWidth + getSidebarW();
+    var tx = daysBetween(range.rangeStart, today) * dayWidth + sidebarW;
     bodyHtml += '<div class="today-line" style="left:' + tx + 'px"></div>';
 
-    for (let i = 0; i < job.tasks.length; i++) {
-      const task = job.tasks[i];
-      const tStart = parseDate(task.start);
-      const tEnd = parseDate(task.end);
-      const leftDays = daysBetween(range.rangeStart, tStart);
-      const widthDays = daysBetween(tStart, tEnd) + 1;
-      const color = PHASE_COLORS[task.color] || PHASE_COLORS.other;
-      const barClass = task.status === 'complete' ? ' completed-bar' : '';
+    for (var i = 0; i < sorted.length; i++) {
+      var job = sorted[i];
+      var jobColor = JOB_COLORS[job.id % JOB_COLORS.length];
+      var start = parseDate(job.startDate);
+      var end = parseDate(job.endDate);
+      var leftDays = daysBetween(range.rangeStart, start);
+      var widthDays = daysBetween(start, end) + 1;
+      var pct = jobProgress(job);
+      var barClass = job.status === 'completed' ? ' completed-bar' : '';
 
       bodyHtml += '<div class="timeline-row">';
-      bodyHtml += '<div class="row-label" data-task="' + i + '">';
-      bodyHtml += '<span class="status-dot ' + task.status + '"></span>';
-      bodyHtml += '<span class="job-name stacked"><span class="line1">' + task.name + '</span><span class="line2">' + task.owner + '</span></span>';
+      bodyHtml += '<div class="row-label" data-job="' + job.id + '">';
+      bodyHtml += '<span class="status-dot ' + job.status + '"></span>';
+      bodyHtml += '<span class="job-name stacked"><span class="line1">' + shortName(job.customer) + '</span><span class="line2">' + job.type + '</span></span>';
       bodyHtml += '</div>';
       bodyHtml += '<div class="row-track">';
-      bodyHtml += '<div class="bar' + barClass + '" data-task="' + i + '" data-type="task" data-job="' + jobId + '" style="left:' + (leftDays * dayWidth) + 'px;width:' + Math.max(widthDays * dayWidth - 2, 24) + 'px;background:' + color + '">';
-      bodyHtml += weekendOverlaysHtml(tStart, tEnd, dayWidth);
+      bodyHtml += '<div class="bar' + barClass + '" data-job="' + job.id + '" data-type="job" style="left:' + (leftDays * dayWidth) + 'px;width:' + (widthDays * dayWidth - 2) + 'px;background:' + jobColor + '">';
+      bodyHtml += weekendOverlaysHtml(start, end, dayWidth);
       bodyHtml += '<div class="drag-handle drag-handle-left" data-side="left"></div>';
-      bodyHtml += '<span class="bar-label">' + task.name + '</span>';
+      bodyHtml += '<span class="bar-label">' + job.customer + ' (' + pct + '%)</span>';
       bodyHtml += '<div class="drag-handle drag-handle-right" data-side="right"></div>';
       bodyHtml += '</div>';
       bodyHtml += '</div></div>';
     }
 
-    // Add Task row
-    bodyHtml += '<div class="timeline-row add-task-row">';
-    bodyHtml += '<div class="row-label add-task-btn" id="addTaskBtn">';
+    // Add Project row
+    bodyHtml += '<div class="timeline-row add-project-row">';
+    bodyHtml += '<div class="row-label add-project-btn" id="addProjectBtn2">';
     bodyHtml += '<span class="add-icon">+</span>';
-    bodyHtml += '<span class="job-name">Add Task</span>';
+    bodyHtml += '<span class="job-name">Add Project</span>';
     bodyHtml += '</div>';
     bodyHtml += '<div class="row-track"></div></div>';
 
     bodyHtml += '</div>';
 
     $timeline.innerHTML = headerHtml + bodyHtml;
-    $timeline.style.width = (trackWidth + getSidebarW()) + 'px';
+    $timeline.style.width = (trackWidth + sidebarW) + 'px';
 
     if (!existingRange) {
       $timeline.classList.add('view-enter');
-      setTimeout(() => $timeline.classList.remove('view-enter'), 300);
+      setTimeout(function() { $timeline.classList.remove('view-enter'); }, 300);
     }
 
-    // Bind (skip if drag just ended)
-    $timeline.querySelectorAll('.bar[data-task], .row-label[data-task]').forEach(el => {
-      el.addEventListener('click', () => {
+    document.getElementById('addProjectBtn2').addEventListener('click', addProject);
+
+    // Click navigates to Daily view for that project
+    $timeline.querySelectorAll('.bar[data-job], .row-label[data-job]').forEach(function(el) {
+      el.addEventListener('click', function() {
         if (Date.now() - lastDragEnd < 300) return;
-        const ti = parseInt(el.dataset.task);
-        renderTaskDetail(jobId, ti);
+        var jid = parseInt(el.dataset.job);
+        renderDaily(jid);
       });
     });
 
     // Tooltips
-    $timeline.querySelectorAll('.bar[data-task]').forEach(el => {
-      const task = job.tasks[parseInt(el.dataset.task)];
-      el.addEventListener('mouseenter', (e) => {
-        const dur = daysBetween(parseDate(task.start), parseDate(task.end)) + 1;
+    $timeline.querySelectorAll('.bar[data-job]').forEach(function(el) {
+      var job = jobs.find(function(j) { return j.id === parseInt(el.dataset.job); });
+      el.addEventListener('mouseenter', function(e) {
+        var pct = jobProgress(job);
         showTooltip(e,
-          '<div class="tooltip-title">' + task.name + '</div>' +
-          '<div class="tooltip-row"><strong>Owner:</strong> ' + task.owner + '</div>' +
-          '<div class="tooltip-row"><strong>Start:</strong> ' + formatDate(parseDate(task.start)) + '</div>' +
-          '<div class="tooltip-row"><strong>End:</strong> ' + formatDate(parseDate(task.end)) + '</div>' +
-          '<div class="tooltip-row"><strong>Duration:</strong> ' + dur + ' day' + (dur > 1 ? 's' : '') + '</div>' +
-          '<div class="tooltip-row"><strong>Status:</strong> ' + task.status + '</div>'
+          '<div class="tooltip-title">' + job.customer + ' — ' + job.type + '</div>' +
+          '<div class="tooltip-row"><strong>Start:</strong> ' + formatDate(parseDate(job.startDate)) + '</div>' +
+          '<div class="tooltip-row"><strong>End:</strong> ' + formatDate(parseDate(job.endDate)) + '</div>' +
+          '<div class="tooltip-row"><strong>Progress:</strong> ' + pct + '%</div>' +
+          '<div class="tooltip-row"><strong>Status:</strong> ' + job.status + '</div>'
         );
       });
       el.addEventListener('mouseleave', hideTooltip);
     });
 
-    // Materials panel (external, sticky)
-    renderMaterials(job);
-
-    // Add Task click
-    const addTaskBtn = document.getElementById('addTaskBtn');
-    if (addTaskBtn) {
-      addTaskBtn.addEventListener('click', function() { addTask(jobId); });
-    }
-
-    // Attach infinite scroll
     if (!existingRange) {
-      attachInfiniteScroll(function(r) { renderProject(jobId, r, false); }, dayWidth);
+      attachInfiniteScroll(function(r) { renderProject(null, r, false); }, dayWidth);
     }
 
-    // Scroll: restore saved position if returning from task detail, otherwise scroll to today
     if (savedScrollLeft !== null) {
       restoreScrollPos();
     } else if (doScroll !== false && !existingRange) {
-      scrollToToday(range, dayWidth, getSidebarW());
+      scrollToToday(range, dayWidth, sidebarW);
     }
     setTimeout(updateFloatingMonth, 50);
   }
@@ -1579,13 +1521,7 @@
   }
 
   function showProjects() {
-    if (currentJobId) {
-      renderProject(currentJobId);
-    } else if (jobs.length > 0) {
-      // Default to first active or first job
-      const active = jobs.find(j => j.status === 'active') || jobs[0];
-      renderProject(active.id);
-    }
+    renderProject();
   }
 
   // ── Scroll to today ──
@@ -1992,11 +1928,11 @@
   let createDrag = null;
 
   document.addEventListener('mousedown', function(e) {
-    if (currentLevel !== 1 && currentLevel !== 2) return;
-    if (currentLevel === 2 && !currentJobId) return;
+    if (currentLevel === 3) return; // no drag-create on task detail
+    if (currentLevel === 0 && !currentJobId) return; // Daily needs a project
     if (dragState) return; // existing bar drag in progress
     // Only trigger on row-track or timeline-body (empty area), not on bars or sidebar
-    var track = e.target.closest('.row-track') || (currentLevel === 1 ? e.target.closest('.timeline-body') : null);
+    var track = e.target.closest('.row-track') || ((currentLevel === 1 || currentLevel === 2) ? e.target.closest('.timeline-body') : null);
     if (!track) return;
     if (e.target.closest('.bar')) return;
     if (e.target.closest('.row-label')) return;
@@ -2004,7 +1940,24 @@
     if (e.target.closest('.add-task-row')) return;
 
     e.preventDefault();
-    var dayWidth = (currentLevel === 1) ? 14 : 48;
+    // Calculate dayWidth based on current level
+    var dayWidth;
+    if (currentLevel === 0) {
+      var sw = getSidebarW();
+      var cw = $timelineContainer.clientWidth || window.innerWidth;
+      dayWidth = Math.floor((cw - sw) / 7);
+      if (dayWidth < 48) dayWidth = 48;
+    } else if (currentLevel === 1) {
+      var sw1 = getSidebarW();
+      var cw1 = $timelineContainer.clientWidth || window.innerWidth;
+      dayWidth = Math.floor((cw1 - sw1) / 90);
+      if (dayWidth < 4) dayWidth = 4;
+    } else {
+      var sw2 = getSidebarW();
+      var cw2 = $timelineContainer.clientWidth || window.innerWidth;
+      dayWidth = Math.floor((cw2 - sw2) / 30);
+      if (dayWidth < 14) dayWidth = 14;
+    }
     var sidebarW = getSidebarW();
     var containerRect = $timelineContainer.getBoundingClientRect();
     var scrollLeft = $timelineContainer.scrollLeft;
@@ -2075,28 +2028,8 @@
     var dragStart = addDays(infiniteState.rangeStart, minD);
     var dragEnd = addDays(infiniteState.rangeStart, maxD);
 
-    if (currentLevel === 1) {
-      // Create a new project
-      var customerName = prompt('Customer name:', 'New Project');
-      if (!customerName || !customerName.trim()) return;
-
-      var newId = jobs.length > 0 ? Math.max.apply(null, jobs.map(function(j) { return j.id; })) + 1 : 1;
-      jobs.push({
-        id: newId,
-        customer: customerName.trim(),
-        type: 'Full Remodel',
-        status: 'scheduled',
-        startDate: dateToString(dragStart),
-        endDate: dateToString(dragEnd),
-        tasks: [],
-        photos: []
-      });
-
-      saveState();
-      saveScrollPos();
-      showTimeline();
-    } else {
-      // Create a new task (Level 2)
+    if (currentLevel === 0) {
+      // Daily: create a new task for the current project
       var job = jobs.find(function(j) { return j.id === currentJobId; });
       if (!job) return;
 
@@ -2120,7 +2053,28 @@
       saveState();
       saveScrollPos();
       autoStaggerTasks(job);
-      renderProject(currentJobId);
+      renderDaily(currentJobId);
+    } else if (currentLevel === 1 || currentLevel === 2) {
+      // Timeline or Projects: create a new project
+      var customerName = prompt('Customer name:', 'New Project');
+      if (!customerName || !customerName.trim()) return;
+
+      var newId = jobs.length > 0 ? Math.max.apply(null, jobs.map(function(j) { return j.id; })) + 1 : 1;
+      jobs.push({
+        id: newId,
+        customer: customerName.trim(),
+        type: 'Full Remodel',
+        status: 'scheduled',
+        startDate: dateToString(dragStart),
+        endDate: dateToString(dragEnd),
+        tasks: [],
+        photos: []
+      });
+
+      saveState();
+      saveScrollPos();
+      if (currentLevel === 1) showTimeline();
+      else renderProject();
     }
   });
 
