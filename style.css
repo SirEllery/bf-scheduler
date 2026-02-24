@@ -59,6 +59,42 @@ html, body {
   flex: 1;
 }
 
+.header-sync {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+}
+
+.sync-indicator {
+  font-size: 16px;
+  cursor: default;
+  transition: opacity 0.3s;
+}
+
+.sync-indicator.sync-syncing {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.sync-settings-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.sync-settings-btn:hover {
+  opacity: 1;
+}
+
 .header-right {
   display: flex;
   align-items: center;

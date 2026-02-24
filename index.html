@@ -12,6 +12,10 @@
     <div class="header">
       <div class="header-left"><button class="undo-btn" id="undoBtn" onclick="app.undo()" title="Undo">↶</button></div>
       <div class="logo"><span class="logo-brand">Bath Foundry</span> <span class="logo-sub">Schedule</span></div>
+      <div class="header-sync">
+        <span class="sync-indicator sync-idle" id="syncIndicator" title="Sync not configured">☁️</span>
+        <button class="sync-settings-btn" id="syncSettingsBtn" onclick="showSyncSettings()" title="Sync Settings">⚙️</button>
+      </div>
       <div class="header-right">
         <button class="view-toggle" id="btnDaily" onclick="app.showDaily()">Daily</button>
         <button class="view-toggle" id="btnProjects" onclick="app.showWeekly()">Weekly</button>
@@ -67,6 +71,7 @@
   <div class="tooltip" id="tooltip"></div>
 
   <script src="data.js"></script>
+  <script src="sync.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

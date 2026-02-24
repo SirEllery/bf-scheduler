@@ -51,6 +51,10 @@
       console.warn('localStorage save failed:', e);
       alert('Storage full — try removing some photos.');
     }
+    // Sync to Google Sheet if configured
+    if (typeof syncSave === 'function') {
+      syncSave(jobs);
+    }
   }
 
   // ── Resize image to thumbnail before storing ──
@@ -2024,6 +2028,17 @@
   };
 
   // ── Init ──
+  // Try to load from Google Sheet first (source of truth), fall back to localStorage
+  if (typeof syncLoad === 'function') {
+    syncLoad(function(remoteJobs) {
+      if (remoteJobs && remoteJobs.length > 0) {
+        jobs = remoteJobs;
+      }
+      renderPortfolio();
+      updateUndoBtn();
+    });
+  }
+  // Render immediately with localStorage data (will re-render if sync succeeds)
   renderPortfolio();
   updateUndoBtn();
 
