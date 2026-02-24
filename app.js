@@ -1454,7 +1454,10 @@
     }
     infiniteState = range;
 
-    var dayWidth = 48;
+    var sidebarW = getSidebarW();
+    var containerWidth = $timelineContainer.clientWidth || window.innerWidth;
+    var dayWidth = Math.floor((containerWidth - sidebarW) / 7);
+    if (dayWidth < 48) dayWidth = 48; // minimum
     var headerResult = buildHeaderDaily(range, dayWidth);
     var headerHtml = headerResult.html;
     var trackWidth = headerResult.trackWidth;
